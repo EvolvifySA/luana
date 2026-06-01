@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import offline_db; import ast; ast.parse\\(open\\('offline_app.py',encoding='utf-8'\\).read\\(\\)\\); print\\('offline_db OK'\\); print\\('offline_app sintaxe OK'\\)\")",
+      "Bash(python -c \"print\\(sum\\(1 for _ in open\\('offline_db.py',encoding='utf-8'\\)\\)\\)\")"
+    ]
+  }
+}

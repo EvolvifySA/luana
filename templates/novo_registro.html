@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Novo Registro{% endblock %}
+{% block topbar_title %}Adicionar Registro{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-3">
+  <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=id_animal) }}" class="text-muted text-decoration-none me-3">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h4 class="fw-bold mb-0">
+    Novo Registro
+    {% if cliente %}
+      <small class="text-muted fw-normal">— {{ cliente.get('nome') or cliente.get('Nome','') }}</small>
+    {% endif %}
+  </h4>
+</div>
+
+<div class="card" style="max-width:650px">
+  <div class="card-body p-4">
+    <form method="post" enctype="multipart/form-data">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Tipo de Registro</label>
+          <select name="tipo" class="form-select" id="tipoSelect">
+            {% for key, label in tipos %}
+            <option value="{{ key.rstrip('s') }}" {% if key.rstrip('s') == tipo %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Data</label>
+          <input type="date" name="data" class="form-control" value="{{ hoje }}">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Descrição / Nome</label>
+          <input type="text" name="descricao" class="form-control" placeholder="Ex: Vacina V8, Consulta de rotina...">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Veterinário Responsável</label>
+          <input type="text" name="veterinario" class="form-control">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Observações / Resultado</label>
+          <textarea name="observacao" class="form-control" rows="4" placeholder="Detalhes, dosagens, resultado do exame..."></textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Anexar Arquivo (PDF, imagem)</label>
+          <input type="file" name="arquivo" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+          <div class="form-text">Opcional. PDFs de laudos de exame, por exemplo.</div>
+        </div>
+        <div class="col-12 d-flex gap-2 pt-2">
+          <button type="submit" class="btn btn-primary px-4">
+            <i class="bi bi-check-lg me-1"></i>Salvar
+          </button>
+          <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=id_animal) }}" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Preenche data de hoje
+document.querySelector('[name=data]').valueAsDate = new Date();
+</script>
+{% endblock %}

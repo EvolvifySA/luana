@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar %}
+{% block title %}{{ cliente.nome if cliente else 'Cliente' }}{% endblock %}
+{% block topbar_title %}Perfil do Cliente{% endblock %}
+{% block topbar_sub %}Cadastro · Animais · Histórico{% endblock %}
+
+{% macro brl(v) %}{{ "{:,.2f}".format(v).replace(",","X").replace(".",",").replace("X",".") }}{% endmacro %}
+
+{% block content %}
+{% set nome = cliente.nome if cliente else 'Cliente não encontrado' %}
+
+<!-- Cabeçalho -->
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+  <div>
+    <div class="breadcrumb-mini mb-2">
+      <a href="{{ url_for('dashboard') }}">Início</a> ›
+      <a href="{{ url_for('clientes') }}">Clientes</a> ›
+      <span class="text-dark">{{ nome.split(' ')[:2]|join(' ') }}</span>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+      {{ avatar(nome, 'azul', 52) }}
+      <h4 class="fw-bold mb-0">{{ nome }}</h4>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('novo_animal', id_cliente=id_cliente) }}" class="btn btn-success"><i class="bi bi-plus-lg me-1"></i>Novo Animal</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <!-- Dados do cliente -->
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-person-vcard me-2 text-azul"></i>Dados do cliente</div>
+      <div class="card-body py-2">
+        {% if cliente %}
+          {% if cliente.cpf %}<div class="info-row"><div class="ic"><i class="bi bi-credit-card-2-front"></i></div><div><div class="k">CPF</div><div class="v">{{ cliente.cpf }}</div></div></div>{% endif %}
+          {% if cliente.celular %}<div class="info-row"><div class="ic"><i class="bi bi-whatsapp"></i></div><div><div class="k">Celular / WhatsApp</div><div class="v">{{ cliente.celular }}</div></div></div>{% endif %}
+          {% if cliente.email %}<div class="info-row"><div class="ic"><i class="bi bi-envelope"></i></div><div><div class="k">E-mail</div><div class="v">{{ cliente.email }}</div></div></div>{% endif %}
+          {% if cliente.endereco %}<div class="info-row"><div class="ic"><i class="bi bi-geo-alt"></i></div><div><div class="k">Endereço</div><div class="v">{{ cliente.endereco }}</div></div></div>{% endif %}
+          {% if cliente.cidade %}<div class="info-row"><div class="ic"><i class="bi bi-buildings"></i></div><div><div class="k">Cidade</div><div class="v">{{ cliente.cidade }}</div></div></div>{% endif %}
+          <div class="info-row"><div class="ic"><i class="bi bi-calendar3"></i></div><div><div class="k">Cliente desde</div><div class="v">{{ cliente.data_cadastro or '—' }} · ID {{ id_cliente }}</div></div></div>
+        {% else %}<p class="text-muted py-3">Dados não encontrados.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Animais -->
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-heart-pulse me-2 text-azul"></i>Animais ({{ animais|length }})</div>
+      <div class="card-body">
+        {% if animais %}
+        <div class="d-flex flex-column gap-2">
+          {% for animal in animais %}
+          {% set aid = animal.get('id_animal') or animal.get('id') or '' %}
+          {% set nome_a = animal.get('nome_animal') or animal.get('nome') or '?' %}
+          <div class="p-3 rounded-3 {% if aid == id_animal_ativo %}border border-primary{% else %}border{% endif %}" style="border-color:var(--line)!important">
+            <div class="d-flex align-items-start gap-3">
+              <span class="avatar avatar-soft" style="width:46px;height:46px;font-size:1.2rem"><i class="bi bi-heart-pulse"></i></span>
+              <div class="flex-grow-1">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <span class="fw-bold">{{ nome_a }}</span>
+                    {% if animal.get('carteirinha') %}<span class="text-muted ms-1" style="font-size:.74rem">Carteirinha {{ animal.carteirinha }}</span>{% endif %}
+                  </div>
+                  {% if animal.get('especie') or animal.get('raca') %}
+                  <span class="pill pill-blue">{{ animal.get('especie','') }}{% if animal.get('especie') and animal.get('raca') %} · {% endif %}{{ animal.get('raca','') }}</span>
+                  {% endif %}
+                </div>
+
+                {% set tem = animal.get('sexo') or animal.get('nascimento') or animal.get('pelagem') %}
+                {% if tem %}
+                <div class="row g-1 mt-1" style="font-size:.8rem">
+                  {% if animal.get('sexo') %}<div class="col-6"><span class="text-muted">Sexo</span> <span class="fw-semibold">{{ animal.sexo }}</span></div>{% endif %}
+                  {% if animal.get('nascimento') %}<div class="col-6"><span class="text-muted">Nascimento</span> <span class="fw-semibold">{{ animal.nascimento }}</span></div>{% endif %}
+                  {% if animal.get('pelagem') %}<div class="col-6"><span class="text-muted">Pelagem</span> <span class="fw-semibold">{{ animal.pelagem }}</span></div>{% endif %}
+                  {% if animal.get('chip') and animal.chip != 'Não informado' %}<div class="col-6"><span class="text-muted">Chip</span> <span class="fw-semibold">{{ animal.chip }}</span></div>{% endif %}
+                </div>
+                {% endif %}
+
+                <div class="d-flex flex-wrap gap-1 mt-2">
+                  {% for sk, sl in secoes %}
+                  <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=aid, secao=sk) }}"
+                     class="btn btn-xs {% if sk == secao_ativa and aid == id_animal_ativo %}btn-primary{% else %}btn-light-soft{% endif %}">{{ sl }}</a>
+                  {% endfor %}
+                  <a href="{{ url_for('novo_ticket', id_cliente=id_cliente, id_animal=aid) }}" class="btn btn-xs btn-outline-primary"><i class="bi bi-receipt"></i> Ticket</a>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state py-4">
+          <i class="bi bi-heart-pulse"></i>Nenhum animal cadastrado.
+          <div class="mt-2"><a href="{{ url_for('novo_animal', id_cliente=id_cliente) }}" class="btn btn-sm btn-success"><i class="bi bi-plus"></i> Adicionar Animal</a></div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tickets -->
+{% if tickets_imp or tickets_novos %}
+{% set total_cli = (tickets_novos|map(attribute='total_liquido')|map('default','0')|list) %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-receipt me-2 text-azul"></i>Tickets ({{ (tickets_imp|length) + (tickets_novos|length) }})</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table mb-0 align-middle">
+        <thead><tr><th>Nº</th><th>Data</th><th>Animal</th><th class="text-end">Valor</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {% for t in tickets_novos %}
+          <tr>
+            <td><span class="fw-semibold text-azul">#{{ t.id }}</span> <span class="pill pill-blue">novo</span></td>
+            <td class="text-muted">{{ t.data or '—' }}</td>
+            <td>{{ t.nome_animal or '—' }}</td>
+            <td class="text-end fw-bold">R$ {{ t.total_liquido or '0,00' }}</td>
+            <td><span class="pill pill-soft"><i class="bi bi-clock"></i> {{ APP_MARCA }}</span></td>
+            <td class="text-end"><a href="{{ url_for('ver_ticket', ticket_id=t.id) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-printer"></i> Imprimir</a></td>
+          </tr>
+          {% endfor %}
+          {% for t in tickets_imp %}
+          <tr>
+            <td class="text-azul fw-semibold">{{ t.get('Nº ticket') or t.get('N ticket') or t.id_financeiro or '—' }}</td>
+            <td class="text-muted">{{ t.get('Data') or '—' }}</td>
+            <td>{{ t.get('Animal') or '—' }}</td>
+            <td class="text-end fw-bold">{{ t.get('Valor Final') or t.get('Valor Ticket') or '—' }}</td>
+            <td>
+              {% set st = t.get('Status','') %}
+              {% if 'Pago' in st %}<span class="pill pill-green"><i class="bi bi-check"></i>Pago</span>
+              {% elif 'Pendente' in st %}<span class="pill pill-amber"><i class="bi bi-clock"></i>Pendente</span>
+              {% else %}<span class="text-muted">{{ st or '—' }}</span>{% endif %}
+            </td>
+            <td class="text-end"><span class="text-muted" style="font-size:.72rem">histórico</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Receitas emitidas (quando seção = receituario) -->
+{% if secao_ativa == 'receituario' %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-capsule me-2 text-azul"></i>Receituário emitido</span>
+    {% if id_animal_ativo %}
+    <a href="{{ url_for('nova_receita', id_cliente=id_cliente, id_animal=id_animal_ativo) }}" class="btn btn-sm btn-success"><i class="bi bi-plus me-1"></i>Emitir receita</a>
+    {% endif %}
+  </div>
+  <div class="card-body p-0">
+    {% if receitas_criadas %}
+    <div class="table-responsive">
+      <table class="table mb-0 align-middle">
+        <thead><tr><th>Tipo</th><th>Data</th><th>Veterinário</th><th>Observação</th><th></th></tr></thead>
+        <tbody>
+          {% for r in receitas_criadas %}
+          <tr>
+            <td>{% if r.tipo == 'especial' %}<span class="pill pill-amber">Controle Especial</span>{% else %}<span class="pill pill-blue">Simples</span>{% endif %}</td>
+            <td class="text-muted">{{ r.data or '—' }}</td>
+            <td>{{ r.veterinario or '—' }}</td>
+            <td class="text-muted">{{ r.observacao or '—' }}</td>
+            <td class="text-end"><a href="{{ url_for('ver_receita', receita_id=r.id) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-printer"></i> Imprimir</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state py-4"><i class="bi bi-capsule"></i>Nenhuma receita emitida{% if not id_animal_ativo %} — selecione um animal acima{% endif %}.</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Histórico da seção selecionada -->
+{% if secao_ativa and id_animal_ativo and secao_ativa != 'receituario' %}
+{% set secao_label = dict(secoes).get(secao_ativa, secao_ativa) %}
+{% set cols_ignorar = ('id','id_cliente','id_animal','nome_cliente','nome_animal','caminho_pdf','url_pdf') %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-clipboard2-pulse me-2 text-azul"></i>{{ secao_label }}</span>
+    <a href="{{ url_for('novo_registro', id_cliente=id_cliente, id_animal=id_animal_ativo, tipo=secao_ativa.rstrip('s')) }}" class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>Adicionar</a>
+  </div>
+  <div class="card-body p-0">
+    {% if registros %}
+    <div class="table-responsive">
+      <table class="table mb-0">
+        <thead><tr>
+          {% set primeiro = registros[0] %}
+          {% for k in primeiro.keys() %}{% if k not in cols_ignorar %}<th>{{ k|replace('_',' ')|title }}</th>{% endif %}{% endfor %}
+          {% if secao_ativa == 'exames' %}<th>PDF</th>{% endif %}
+        </tr></thead>
+        <tbody>
+          {% for reg in registros %}
+          <tr>
+            {% for k, v in reg.items() %}{% if k not in cols_ignorar %}<td>{{ v or '—' }}</td>{% endif %}{% endfor %}
+            {% if secao_ativa == 'exames' %}
+            <td>
+              {% set pdf = reg.get('caminho_pdf','') %}
+              {% if pdf and pdf != 'requer_navegador' %}<a href="{{ url_for('ver_pdf', f=pdf) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-file-earmark-pdf text-danger"></i> PDF</a>
+              {% elif pdf == 'requer_navegador' %}<span class="text-muted" style="font-size:.72rem"><i class="bi bi-x-circle"></i> Indisponível</span>
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state"><i class="bi bi-inbox"></i>Nenhum registro de {{ secao_label|lower }} para este animal.</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

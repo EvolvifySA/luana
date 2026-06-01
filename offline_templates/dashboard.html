@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar %}
+{% block title %}Dashboard{% endblock %}
+{% block topbar_title %}Dashboard{% endblock %}
+{% block topbar_sub %}Visão geral do sistema{% endblock %}
+
+{% macro brl(v) %}{{ "{:,.2f}".format(v).replace(",","X").replace(".",",").replace("X",".") }}{% endmacro %}
+
+{% block content %}
+
+<!-- Cards de métricas -->
+<div class="row g-3 mb-3">
+  <div class="col-md-3 col-6">
+    <div class="stat">
+      <div class="top">
+        <div><div class="lbl">Clientes</div><div class="num text-azul">{{ stats.clientes }}</div></div>
+        <div class="ico ico-azul"><i class="bi bi-people-fill"></i></div>
+      </div>
+      <div class="foot text-success"><i class="bi bi-arrow-up-short"></i> base ativa de tutores</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat">
+      <div class="top">
+        <div><div class="lbl">Animais</div><div class="num" style="color:#0891b2">{{ stats.animais }}</div></div>
+        <div class="ico ico-ciano"><i class="bi bi-heart-pulse-fill"></i></div>
+      </div>
+      <div class="foot text-muted"><i class="bi bi-clipboard2-pulse"></i> prontuários registrados</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat">
+      <div class="top">
+        <div><div class="lbl">Recebido</div><div class="num text-success">R$ {{ brl(fin.total_recebido) }}</div></div>
+        <div class="ico ico-verde"><i class="bi bi-cash-coin"></i></div>
+      </div>
+      <div class="foot text-success"><i class="bi bi-check-circle"></i> {{ fin.qtd_pagos }} tickets pagos</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat">
+      <div class="top">
+        <div><div class="lbl">A receber</div><div class="num text-danger">R$ {{ brl(fin.total_pendente) }}</div></div>
+        <div class="ico ico-amber"><i class="bi bi-clock-history"></i></div>
+      </div>
+      <div class="foot text-muted"><i class="bi bi-hourglass-split"></i> {{ fin.qtd_pendentes }} pendentes</div>
+    </div>
+  </div>
+</div>
+
+<!-- Atalhos -->
+<div class="d-flex flex-wrap gap-2 mb-4">
+  <a href="{{ url_for('atendimento', acao='ticket') }}" class="btn btn-primary"><i class="bi bi-receipt me-1"></i>Novo Ticket</a>
+  <a href="{{ url_for('atendimento', acao='receita') }}" class="btn btn-success"><i class="bi bi-capsule me-1"></i>Nova Receita</a>
+  <a href="{{ url_for('novo_cliente') }}" class="btn btn-light-soft"><i class="bi bi-person-plus me-1"></i>Novo Cliente</a>
+</div>
+
+<div class="row g-3">
+  <!-- Gráfico -->
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-bar-chart-fill me-2 text-azul"></i>Faturamento — últimos 12 meses</span>
+        <a href="{{ url_for('financeiro') }}" class="btn btn-sm btn-outline-primary">Ver detalhes</a>
+      </div>
+      <div class="card-body">
+        <div class="chart">
+          {% for m in fin.fluxo %}
+          <div class="col">
+            <div class="cv">{% if m.valor > 0 %}{{ (m.valor/1000)|round(1) }}k{% endif %}</div>
+            <div class="bar {% if loop.last %}now{% endif %}"
+                 style="height: {{ (m.valor / fin.fluxo_max * 100) if fin.fluxo_max else 0 }}%"
+                 title="R$ {{ brl(m.valor) }}"></div>
+            <div class="cl">{{ m.label }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Últimos atendimentos -->
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock-history me-2 text-azul"></i>Últimos atendimentos</span>
+        <a href="{{ url_for('financeiro') }}" class="text-azul small fw-semibold">Ver todos</a>
+      </div>
+      <div class="card-body p-0">
+        {% if ultimos %}
+        <div style="max-height:330px;overflow-y:auto">
+          {% for t in ultimos %}
+          <div class="d-flex align-items-center gap-3 px-3 py-2" style="border-bottom:1px solid var(--line)">
+            {{ avatar(t.cliente, 'soft', 38) }}
+            <div class="flex-grow-1 min-w-0">
+              <div class="fw-semibold text-truncate" style="font-size:.85rem">{{ t.cliente or '—' }}</div>
+              <div class="text-muted text-truncate" style="font-size:.74rem">{{ t.animal }} · {{ t.data }}</div>
+            </div>
+            <div class="text-end">
+              <div class="fw-bold" style="font-size:.85rem">R$ {{ brl(t.valor) }}</div>
+              {% if t.pago %}<span class="pill pill-green"><i class="bi bi-check"></i>Pago</span>
+              {% else %}<span class="pill pill-amber"><i class="bi bi-clock"></i>Pendente</span>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state"><i class="bi bi-inbox"></i>Sem atendimentos ainda.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Novo Cliente{% endblock %}
+{% block topbar_title %}Cadastrar Cliente{% endblock %}
+{% block topbar_sub %}Adicione um novo cliente à base{% endblock %}
+
+{% block content %}
+<form method="post" style="max-width:840px;margin:0 auto">
+  <div class="card">
+    <div class="card-header"><i class="bi bi-person-plus me-2 text-azul"></i>Novo Cliente</div>
+    <div class="card-body p-4">
+
+      <div class="sec-label"><i class="bi bi-person"></i>Dados Pessoais</div>
+      <div class="row g-3 mb-3">
+        <div class="col-12">
+          <label class="form-label">Nome completo <span class="text-danger">*</span></label>
+          <input type="text" name="nome" class="form-control" value="{{ form.get('nome','') }}" placeholder="Ex.: Maria Aparecida Souza" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">CPF</label>
+          <input type="text" name="cpf" class="form-control" value="{{ form.get('cpf','') }}" placeholder="000.000.000-00">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Data de nascimento</label>
+          <input type="date" name="nascimento" class="form-control" value="{{ form.get('nascimento','') }}">
+        </div>
+      </div>
+
+      <div class="sec-label"><i class="bi bi-telephone"></i>Contato</div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <label class="form-label">Celular / WhatsApp <span class="text-danger">*</span></label>
+          <div class="input-ico"><i class="bi bi-whatsapp"></i><input type="text" name="celular" class="form-control" value="{{ form.get('celular','') }}" placeholder="(83) 99999-9999" required></div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Telefone fixo</label>
+          <div class="input-ico"><i class="bi bi-telephone"></i><input type="text" name="telefone" class="form-control" value="{{ form.get('telefone','') }}" placeholder="(83) 3000-0000"></div>
+        </div>
+        <div class="col-12">
+          <label class="form-label">E-mail</label>
+          <div class="input-ico"><i class="bi bi-envelope"></i><input type="email" name="email" class="form-control" value="{{ form.get('email','') }}" placeholder="nome@email.com"></div>
+        </div>
+      </div>
+
+      <div class="sec-label"><i class="bi bi-geo-alt"></i>Endereço</div>
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label">Endereço</label>
+          <div class="input-ico"><i class="bi bi-geo-alt"></i><input type="text" name="endereco" class="form-control" value="{{ form.get('endereco','') }}" placeholder="Rua, número, bairro"></div>
+        </div>
+        <div class="col-md-7">
+          <label class="form-label">Cidade</label>
+          <input type="text" name="cidade" class="form-control" value="{{ form.get('cidade','') }}" placeholder="João Pessoa">
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Estado</label>
+          <select name="estado" class="form-select">
+            {% for uf in ['PB','PE','RN','CE','AL','SE','BA','SP','RJ','MG','Outro'] %}
+            <option {% if form.get('estado')==uf %}selected{% endif %}>{{ uf }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Observações</label>
+          <textarea name="observacao" class="form-control" rows="3" placeholder="Informações relevantes sobre o cliente...">{{ form.get('observacao','') }}</textarea>
+        </div>
+      </div>
+
+    </div>
+    <div class="card-footer bg-white d-flex justify-content-end gap-2 py-3" style="border-top:1px solid var(--line);border-radius:0 0 16px 16px">
+      <a href="{{ url_for('clientes') }}" class="btn btn-light-soft">Cancelar</a>
+      <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>Cadastrar cliente</button>
+    </div>
+  </div>
+</form>
+{% endblock %}

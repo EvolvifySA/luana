@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entrar — {{ APP_NOME }} {{ APP_MARCA }}</title>
+  <link href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}" rel="stylesheet">
+  <style>
+    * { font-family: 'Segoe UI', system-ui, sans-serif; box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: flex; }
+
+    /* Painel esquerdo (marketing) */
+    .left {
+      flex: 1; background: linear-gradient(150deg, #0a2240 0%, #102f57 45%, #1e5bb8 100%);
+      color: #fff; padding: 3rem 3.5rem; display: flex; flex-direction: column; position: relative; overflow: hidden;
+    }
+    .left::after {
+      content: ''; position: absolute; bottom: -120px; right: -80px;
+      width: 360px; height: 360px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(224,169,60,.18), transparent 70%);
+    }
+    .left .logo { display: flex; align-items: center; gap: .7rem; margin-bottom: auto; }
+    .left .logo .box { width: 46px; height: 46px; background: #fff; border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .left .logo .box img { width: 88%; height: 88%; object-fit: contain; }
+    .left .logo .nm { font-size: 1.3rem; font-weight: 800; }
+    .left h1 { font-size: 2.4rem; font-weight: 800; line-height: 1.15; margin: 0 0 1rem; max-width: 460px; }
+    .left .lead { color: #b9cdea; font-size: 1rem; max-width: 420px; line-height: 1.6; margin-bottom: 2.2rem; }
+    .left .feat { display: flex; align-items: center; gap: .9rem; margin-bottom: 1rem; }
+    .left .feat .fi { width: 42px; height: 42px; border-radius: 11px; background: rgba(255,255,255,.1); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; color: #f5b860; }
+    .left .feat span { font-weight: 500; color: #e2ecf9; }
+    .left .copy { color: #6f8fb8; font-size: .78rem; margin-top: auto; }
+
+    /* Painel direito (form) */
+    .right { flex: 0 0 46%; max-width: 560px; background: #fff; display: flex; align-items: center; justify-content: center; padding: 2rem; }
+    .form-wrap { width: 100%; max-width: 360px; }
+    .form-wrap h2 { font-size: 1.7rem; font-weight: 800; color: #0f2e5c; margin-bottom: .25rem; }
+    .form-wrap .sub { color: #64748b; font-size: .9rem; margin-bottom: 1.8rem; }
+    .form-label { font-size: .8rem; font-weight: 600; color: #475569; margin-bottom: .35rem; }
+    .ig { position: relative; margin-bottom: 1.1rem; }
+    .ig i.lead-i { position: absolute; left: .9rem; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+    .ig input { width: 100%; border: 1px solid #dbe3ec; border-radius: 11px; padding: .7rem .9rem .7rem 2.5rem; font-size: .92rem; }
+    .ig input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+    .ig .toggle { position: absolute; right: .85rem; top: 50%; transform: translateY(-50%); color: #94a3b8; cursor: pointer; background: none; border: none; }
+    .row-opts { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.3rem; font-size: .82rem; }
+    .row-opts a { color: #2563eb; font-weight: 600; }
+    .btn-entrar { width: 100%; background: linear-gradient(135deg, #2563eb, #1e5bb8); border: none; color: #fff; padding: .8rem; font-weight: 700; font-size: .95rem; border-radius: 11px; display: flex; align-items: center; justify-content: center; gap: .5rem; cursor: pointer; }
+    .btn-entrar:hover { background: linear-gradient(135deg, #1d4ed8, #1a4f9e); }
+    .foot-info { text-align: center; color: #94a3b8; font-size: .76rem; margin-top: 1.6rem; }
+    .alerta { background: #e8f1fd; color: #1e5bb8; border-radius: 10px; padding: .7rem .9rem; font-size: .82rem; margin-bottom: 1.2rem; display: flex; align-items: center; gap: .5rem; }
+    .alerta.err { background: #fee2e2; color: #b91c1c; }
+
+    @media (max-width: 900px) { .left { display: none; } .right { flex: 1; max-width: none; } }
+  </style>
+</head>
+<body>
+  <div class="left">
+    <div class="logo">
+      <div class="box">
+        <img src="{{ url_for('static', filename='logo.svg') }}" alt=""
+             onerror="this.parentElement.innerHTML='<span style=color:#2563eb;font-weight:800;font-size:1.4rem>E</span>'">
+      </div>
+      <span class="nm">{{ APP_MARCA }}</span>
+    </div>
+
+    <h1>A gestão da sua clínica veterinária, sem complicação.</h1>
+    <p class="lead">Clientes, animais, atendimentos e financeiro em um só lugar — rápido, organizado e sempre à mão.</p>
+
+    <div class="feat"><div class="fi"><i class="bi bi-clipboard2-pulse"></i></div><span>Prontuário completo de cada animal</span></div>
+    <div class="feat"><div class="fi"><i class="bi bi-receipt"></i></div><span>Tickets e receitas em segundos</span></div>
+    <div class="feat"><div class="fi"><i class="bi bi-graph-up-arrow"></i></div><span>Financeiro e relatórios em tempo real</span></div>
+
+    <div class="copy">© 2026 {{ APP_MARCA }} · Sistema de Gestão Veterinária</div>
+  </div>
+
+  <div class="right">
+    <div class="form-wrap">
+      <h2>Acesse sua conta</h2>
+      <div class="sub">Bom te ver de novo. Entre para continuar.</div>
+
+      {% with msgs = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in msgs %}
+          <div class="alerta {{ 'err' if cat in ('danger','error') else '' }}">
+            <i class="bi bi-{{ 'exclamation-circle' if cat in ('danger','error') else 'clock-history' }}"></i>{{ msg }}
+          </div>
+        {% endfor %}
+      {% endwith %}
+
+      <form method="post">
+        <label class="form-label">Usuário</label>
+        <div class="ig">
+          <i class="bi bi-person lead-i"></i>
+          <input type="text" name="username" autofocus required>
+        </div>
+
+        <label class="form-label">Senha</label>
+        <div class="ig">
+          <i class="bi bi-lock lead-i"></i>
+          <input type="password" name="senha" id="senha" required>
+          <button type="button" class="toggle" onclick="const s=document.getElementById('senha');s.type=s.type==='password'?'text':'password';this.querySelector('i').classList.toggle('bi-eye');this.querySelector('i').classList.toggle('bi-eye-slash')">
+            <i class="bi bi-eye"></i>
+          </button>
+        </div>
+
+        <div class="row-opts">
+          <label class="d-flex align-items-center gap-1 text-secondary">
+            <input type="checkbox" name="lembrar" checked> Manter conectado
+          </label>
+          <a href="#" onclick="alert('Contate o administrador do sistema para redefinir a senha.');return false">Esqueci minha senha</a>
+        </div>
+
+        <button type="submit" class="btn-entrar"><i class="bi bi-box-arrow-in-right"></i> Entrar</button>
+      </form>
+
+      <div class="foot-info">{{ APP_NOME }} <strong>{{ APP_MARCA }}</strong> · v2.0 · Suporte: (83) 99999-0000</div>
+    </div>
+  </div>
+</body>
+</html>

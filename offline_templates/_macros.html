@@ -1,0 +1,15 @@
+{# Avatar com iniciais do nome #}
+{% macro avatar(nome, cor='azul', size=40) %}
+  {%- set palavras = (nome or '?').split() -%}
+  {%- set ini = (palavras[0][0] if palavras else '?') ~ (palavras[1][0] if palavras|length > 1 else '') -%}
+  <span class="avatar avatar-{{ cor }}" style="width:{{ size }}px;height:{{ size }}px;font-size:{{ (size*0.38)|round|int }}px">{{ ini|upper }}</span>
+{% endmacro %}
+
+{# Ícone de espécie do animal #}
+{% macro icone_especie(especie) %}
+  {%- set e = (especie or '')|lower -%}
+  {%- if 'fel' in e or 'gat' in e -%}bi-github
+  {%- elif 'av' in e or 'pass' in e -%}bi-feather
+  {%- else -%}bi-heart-pulse
+  {%- endif -%}
+{% endmacro %}

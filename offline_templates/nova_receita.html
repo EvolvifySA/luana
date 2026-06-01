@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Nova Receita{% endblock %}
+{% block topbar_title %}Emitir Receituário{% endblock %}
+
+{% block content %}
+{% set nome_animal = animal.get('nome_animal') or animal.get('nome') or '' %}
+
+<div class="d-flex align-items-center mb-3">
+  <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=id_animal, secao='receituario') }}"
+     class="text-muted text-decoration-none me-3">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h4 class="fw-bold mb-0">
+    Emitir Receituário
+    <small class="text-muted fw-normal">— {{ cliente.nome if cliente else '' }} / {{ nome_animal }}</small>
+  </h4>
+</div>
+
+<form method="post">
+  <div class="card mb-3" style="max-width:800px">
+    <div class="card-body">
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-5">
+          <label class="form-label fw-semibold">Tipo de Receituário</label>
+          <select name="tipo" class="form-select">
+            <option value="simples">Receituário Simples</option>
+            <option value="especial">Receituário de Controle Especial</option>
+          </select>
+          <div class="form-text">
+            Controle especial = medicamentos controlados (3 vias).
+          </div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Veterinário(a)</label>
+          <input type="text" name="veterinario" class="form-control" value="Luana Feitosa">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">CRMV</label>
+          <input type="text" name="crmv" class="form-control" placeholder="CRMV-PB 0000">
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">
+          <i class="bi bi-capsule me-1"></i>Uso Oral
+        </label>
+        <textarea name="uso_oral" class="form-control" rows="5"
+          placeholder="Um medicamento por linha. Ex:
+Petsporin 150mg --- 1cx --- Dar 1 comprimido pela manhã durante 10 dias
+Dipirona gotas --- 1fr --- 5 gotas, 2x ao dia, por 5 dias"></textarea>
+        <div class="form-text">Cada linha vira um item na receita.</div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">
+          <i class="bi bi-droplet me-1"></i>Uso Tópico
+        </label>
+        <textarea name="uso_topico" class="form-control" rows="4"
+          placeholder="Um medicamento por linha. Ex:
+Furanil spray --- 1fr --- Passar na ferida 1x ao dia por 14 dias"></textarea>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Observações / Orientações gerais</label>
+        <textarea name="observacao" class="form-control" rows="2"></textarea>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Data</label>
+          <input type="text" name="data" class="form-control" id="dataReceita" placeholder="DD/MM/AAAA">
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="d-flex gap-2" style="max-width:800px">
+    <button type="submit" class="btn btn-primary px-4">
+      <i class="bi bi-printer me-1"></i>Gerar Receita
+    </button>
+    <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=id_animal, secao='receituario') }}"
+       class="btn btn-outline-secondary">Cancelar</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const h = new Date();
+document.getElementById('dataReceita').value =
+  String(h.getDate()).padStart(2,'0')+'/'+String(h.getMonth()+1).padStart(2,'0')+'/'+h.getFullYear();
+</script>
+{% endblock %}

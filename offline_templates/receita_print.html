@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Receituário — {{ animal.get('nome_animal') or animal.get('nome') or '' }}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 13px; padding: 25px; color: #1a1a1a; }
+    .header { text-align: center; margin-bottom: 6px; }
+    .header h2 { font-size: 16px; }
+    .header p { font-size: 11px; color: #444; }
+
+    .emitente { border: 1px solid #333; padding: 8px 12px; margin-bottom: 12px; display: flex; justify-content: space-between; }
+    .emitente .left p { font-size: 11px; margin: 2px 0; }
+    .emitente .vias { font-size: 11px; text-align: right; }
+
+    fieldset { border: 1px solid #999; border-radius: 4px; padding: 8px 12px; margin-bottom: 10px; }
+    fieldset legend { font-size: 11px; font-weight: bold; padding: 0 6px; color: #555; }
+    fieldset p { font-size: 12px; margin: 2px 0; line-height: 1.5; }
+    fieldset b { font-weight: bold; }
+
+    .titulo-receita { text-align: center; font-size: 15px; font-weight: bold; margin: 18px 0 14px; text-decoration: underline; }
+
+    .uso-titulo { text-align: center; font-size: 13px; font-weight: bold; text-decoration: underline; margin: 16px 0 12px; }
+    .medicamento { margin-bottom: 14px; }
+    .med-linha { display: flex; align-items: baseline; font-size: 13px; }
+    .med-num { font-weight: bold; margin-right: 6px; }
+    .med-nome { font-weight: bold; }
+    .med-pontilhado { flex: 1; border-bottom: 1px dotted #333; margin: 0 6px; min-width: 40px; }
+    .med-qtd { font-weight: bold; white-space: nowrap; }
+    .med-instr { font-size: 12px; color: #333; margin-left: 22px; margin-top: 2px; }
+
+    .obs { margin-top: 18px; font-size: 12px; }
+    .assinatura { margin-top: 50px; text-align: center; }
+    .assinatura .linha { border-top: 1px solid #333; width: 250px; margin: 0 auto 4px; }
+    .assinatura p { font-size: 12px; }
+
+    .data-local { text-align: right; margin-top: 25px; font-size: 12px; }
+
+    @media print {
+      body { padding: 12mm; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="no-print" style="background:#f0f4f8;padding:10px;margin:-25px -25px 20px;display:flex;gap:10px;">
+  <button onclick="window.print()" style="padding:8px 20px;background:#0d6efd;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;">
+    🖨️ Imprimir
+  </button>
+  <button onclick="window.history.back()" style="padding:8px 16px;background:#6c757d;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;">
+    ← Voltar
+  </button>
+  <span style="align-self:center;color:#666;font-size:12px;">
+    {{ 'Receituário de Controle Especial' if receita.tipo == 'especial' else 'Receituário Simples' }}
+  </span>
+</div>
+
+{# ── Cabeçalho ── #}
+{% if receita.tipo == 'especial' %}
+<div class="emitente">
+  <div class="left">
+    <p style="font-weight:bold;text-align:center;margin-bottom:6px;">IDENTIFICAÇÃO DO EMITENTE</p>
+    <p><b>Nome:</b> {{ receita.veterinario }} {% if receita.crmv %}&nbsp; CRMV: {{ receita.crmv }}{% endif %}</p>
+    <p><b>{{ clinica.nome }}</b></p>
+    {% if clinica.tel1 %}<p><b>Telefone:</b> {{ clinica.tel1 }}</p>{% endif %}
+    {% if clinica.email %}<p><b>Email:</b> {{ clinica.email }}</p>{% endif %}
+  </div>
+  <div class="vias">
+    1ª Via Farmácia<br>
+    2ª Via Paciente<br>
+    3ª Via Veterinário
+  </div>
+</div>
+{% else %}
+<div class="header">
+  <h2>{{ clinica.nome }}</h2>
+  {% if clinica.tel1 or clinica.email %}
+  <p>
+    {% if clinica.tel1 %}Telefone: {{ clinica.tel1 }}{% endif %}
+    {% if clinica.email %}&nbsp;|&nbsp; Email: {{ clinica.email }}{% endif %}
+  </p>
+  {% endif %}
+  {% if receita.veterinario %}
+  <p>{{ receita.veterinario }}{% if receita.crmv %} — CRMV: {{ receita.crmv }}{% endif %}</p>
+  {% endif %}
+</div>
+<hr style="margin:8px 0 14px;">
+{% endif %}
+
+{# ── Responsável ── #}
+<fieldset>
+  <legend>Responsável</legend>
+  <p><b>Nome:</b> {{ cliente.nome if cliente else '—' }}
+     {% if cliente and cliente.celular %}&nbsp;&nbsp; <b>Telefone:</b> {{ cliente.celular }}{% endif %}</p>
+  {% if cliente and cliente.cpf %}<p><b>CPF:</b> {{ cliente.cpf }}</p>{% endif %}
+  {% if cliente and cliente.endereco %}<p><b>Endereço:</b> {{ cliente.endereco }}</p>{% endif %}
+</fieldset>
+
+{# ── Animal ── #}
+<fieldset>
+  <legend>Animal</legend>
+  <p>
+    <b>Nome:</b> {{ animal.get('nome_animal') or animal.get('nome') or '—' }} &nbsp;
+    {% if animal.get('especie') %}<b>Espécie:</b> {{ animal.especie }} &nbsp;{% endif %}
+    {% if animal.get('raca') %}<b>Raça:</b> {{ animal.raca }} &nbsp;{% endif %}
+    {% if animal.get('sexo') %}<b>Sexo:</b> {{ animal.sexo }} &nbsp;{% endif %}
+    {% if animal.get('pelagem') %}<b>Pelagem:</b> {{ animal.pelagem }}{% endif %}
+  </p>
+  {% if animal.get('nascimento') %}<p><b>Nascimento:</b> {{ animal.nascimento }}</p>{% endif %}
+</fieldset>
+
+<div class="titulo-receita">
+  {% if receita.tipo == 'especial' %}Receituário de Controle Especial{% else %}Receituário{% endif %}
+</div>
+
+{# ── Macro para renderizar medicamentos ── #}
+{% macro render_meds(itens) %}
+  {% for item in itens %}
+    {% set partes = item.split('---') %}
+    <div class="medicamento">
+      <div class="med-linha">
+        <span class="med-num">{{ loop.index }} -</span>
+        <span class="med-nome">{{ partes[0] | trim }}</span>
+        <span class="med-pontilhado"></span>
+        {% if partes | length > 1 %}<span class="med-qtd">{{ partes[1] | trim }}</span>{% endif %}
+      </div>
+      {% if partes | length > 2 %}
+      <div class="med-instr">{{ partes[2] | trim }}</div>
+      {% endif %}
+    </div>
+  {% endfor %}
+{% endmacro %}
+
+{% if receita.oral_itens %}
+<div class="uso-titulo">Uso Oral</div>
+{{ render_meds(receita.oral_itens) }}
+{% endif %}
+
+{% if receita.topico_itens %}
+<div class="uso-titulo">Uso Tópico</div>
+{{ render_meds(receita.topico_itens) }}
+{% endif %}
+
+{% if not receita.oral_itens and not receita.topico_itens %}
+<p style="text-align:center;color:#999;margin:30px 0;">Nenhum medicamento informado.</p>
+{% endif %}
+
+{% if receita.observacao %}
+<div class="obs"><b>Observações:</b> {{ receita.observacao }}</div>
+{% endif %}
+
+<div class="data-local">{{ clinica.cidade or '' }}{% if clinica.cidade %}, {% endif %}{{ receita.data }}</div>
+
+<div class="assinatura">
+  <div class="linha"></div>
+  <p>{{ receita.veterinario }}</p>
+  {% if receita.crmv %}<p>Médico(a) Veterinário(a) — {{ receita.crmv }}</p>{% endif %}
+</div>
+
+</body>
+</html>

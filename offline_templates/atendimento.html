@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar %}
+{% block title %}{{ 'Emitir Receita' if acao == 'receita' else 'Emitir Ticket' }}{% endblock %}
+{% block topbar_title %}{{ 'Emitir Receita' if acao == 'receita' else 'Emitir Ticket' }}{% endblock %}
+{% block topbar_sub %}Busque o cliente e inicie o atendimento{% endblock %}
+
+{% block content %}
+{% set is_receita = (acao == 'receita') %}
+
+<div class="card mb-3">
+  <div class="card-body">
+    <label class="form-label">Buscar cliente</label>
+    <form method="get" class="d-flex gap-2">
+      <input type="hidden" name="acao" value="{{ acao }}">
+      <div class="input-ico flex-grow-1">
+        <i class="bi bi-search"></i>
+        <input type="text" name="q" class="form-control" placeholder="Nome do cliente..." value="{{ q }}" autofocus>
+      </div>
+      <button class="btn btn-primary px-4"><i class="bi bi-search me-1"></i>Buscar</button>
+    </form>
+    <div class="text-muted mt-2" style="font-size:.78rem">Selecione o cliente, escolha o animal e emita {{ 'a receita' if is_receita else 'o ticket' }}.</div>
+  </div>
+</div>
+
+{% if q %}
+  {% if achados %}
+    {% for item in achados %}
+    {% set c = item.cliente %}
+    <div class="card mb-2">
+      <div class="card-body py-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center gap-2">
+            {{ avatar(c.nome, 'azul', 42) }}
+            <div>
+              <div class="fw-bold">{{ c.nome }}</div>
+              <div class="text-muted" style="font-size:.78rem">
+                {% if c.cpf %}<i class="bi bi-credit-card-2-front"></i> {{ c.cpf }}{% endif %}
+                {% if c.celular %}&nbsp;·&nbsp;<i class="bi bi-telephone"></i> {{ c.celular }}{% endif %}
+              </div>
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            {% if item.animais %}
+            {% for a in item.animais %}
+            {% set aid = a.get('id_animal') or a.get('id') or '' %}
+            {% set nome_a = a.get('nome_animal') or a.get('nome') or '?' %}
+            <a href="{{ url_for('nova_receita' if is_receita else 'novo_ticket', id_cliente=c.id_cliente, id_animal=aid) }}"
+               class="btn btn-sm {{ 'btn-success' if is_receita else 'btn-primary' }}">
+              <i class="bi bi-heart-pulse me-1"></i>{{ nome_a }} <i class="bi bi-arrow-right-short"></i>
+            </a>
+            {% endfor %}
+            {% else %}
+            <span class="text-muted small me-2">Sem animais</span>
+            <a href="{{ url_for('novo_animal', id_cliente=c.id_cliente) }}" class="btn btn-sm btn-light-soft"><i class="bi bi-plus"></i> Animal</a>
+            {% endif %}
+            <a href="{{ url_for('cliente', id_cliente=c.id_cliente) }}" class="btn btn-sm btn-light-soft"><i class="bi bi-person"></i> Ver perfil</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state"><i class="bi bi-search"></i>Nenhum cliente encontrado para "<strong>{{ q }}</strong>".</div>
+  {% endif %}
+{% else %}
+  <div class="empty-state"><i class="bi bi-person-vcard"></i>Digite o nome de um cliente para começar.</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,5 @@
+﻿id_cliente,id_animal,nome_cliente,nome_animal,Data,Inicio,Final,Agenda,Taxi dog,Funcionário,Obs,Enviar,Status,Avisado Whats,Lido,Editar,Deletar
+1723799,2430698,Anaésia da Silva,Pérola,13/06/2025,10:00,19:30,Retorno,Não,Luana M. Feitosa Barroso,,,Aguardando Compareceu Não Compareceu,Sim Não,Sim Não,,
+1779352,2515778,Dayane Batista Ferreira,Mel,28/06/2025,10:00,19:00,Retorno,Não,Luana M. Feitosa Barroso,Retorno (Coleta de perfil),,Aguardando Compareceu Não Compareceu,Sim Não,Sim Não,,
+1778797,2514926,Elizabeth da Silva Bastos,Hanna,28/06/2025,10:00,19:30,Retorno,Não,Luana M. Feitosa Barroso,Retorno (Coleta de perfil),,Aguardando Compareceu Não Compareceu,Sim Não,Sim Não,,
+1890641,2684988,Natanny Soares Dantas,Sky,05/10/2025,10:31,00:00,Retorno,Não,Luana M. Feitosa Barroso,Retorno para coleta de perfil e realização de cirurgia (retirada de ovário e útero),,Aguardando Compareceu Não Compareceu,Sim Não,Sim Não,,

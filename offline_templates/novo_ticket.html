@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Novo Ticket{% endblock %}
+{% block topbar_title %}Registrar Ticket{% endblock %}
+
+{% block content %}
+{% set nome_animal = animal.get('nome_animal') or animal.get('nome') or '' %}
+
+<div class="d-flex align-items-center mb-3">
+  <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=id_animal) }}"
+     class="text-muted text-decoration-none me-3">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h4 class="fw-bold mb-0">
+    Registrar Ticket
+    <small class="text-muted fw-normal">
+      — {{ cliente.nome if cliente else '' }} / {{ nome_animal }}
+    </small>
+  </h4>
+</div>
+
+<form method="post" id="ticketForm">
+  <div class="card mb-3">
+    <div class="card-body">
+
+      <h6 class="fw-bold mb-3"><i class="bi bi-cart me-2 text-primary"></i>Itens do Ticket</h6>
+
+      <table class="table table-sm align-middle" id="itensTable">
+        <thead>
+          <tr>
+            <th style="width:35%">Serviço / Produto</th>
+            <th style="width:15%">Tipo</th>
+            <th style="width:10%">Qtd</th>
+            <th style="width:15%">Valor Unit.</th>
+            <th style="width:13%">Desconto</th>
+            <th style="width:12%">Subtotal</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="itensBody">
+          <!-- linhas inseridas via JS -->
+        </tbody>
+      </table>
+
+      <button type="button" class="btn btn-sm btn-outline-primary" onclick="addLinha()">
+        <i class="bi bi-plus"></i> Adicionar item
+      </button>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Serviço feito por</label>
+              <input type="text" name="veterinario" class="form-control"
+                     value="Luana Feitosa">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Data do Ticket</label>
+              <input type="text" name="data" class="form-control" id="dataTicket"
+                     placeholder="DD/MM/AAAA">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-dark text-white">
+        <div class="card-body text-center">
+          <div class="small text-white-50">Valor Final do Ticket</div>
+          <div class="fs-3 fw-bold" id="totalGeral">R$ 0,00</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-3 d-flex gap-2">
+    <button type="submit" class="btn btn-primary px-4">
+      <i class="bi bi-printer me-1"></i>Gerar e Imprimir Ticket
+    </button>
+    <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=id_animal) }}"
+       class="btn btn-outline-secondary">Cancelar</a>
+  </div>
+</form>
+
+<!-- Lista de serviços para autocomplete -->
+<datalist id="listaServicos">
+  {% for s in servicos %}
+    {% set nome_s = s.get('Nome do Serviço') or s.get('nome') or s.get('Nome') or '' %}
+    {% set valor_s = s.get('Valor do serviço') or s.get('valor') or s.get('Valor') or '' %}
+    {% if nome_s %}
+    <option value="{{ nome_s }}" data-valor="{{ valor_s }}" data-tipo="{{ s.get('tipo','clinica') }}">
+    {% endif %}
+  {% endfor %}
+</datalist>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Mapa nome do serviço -> valor (para preencher automaticamente)
+const SERVICOS = {
+  {% for s in servicos %}
+    {% set nome_s = s.get('Nome do Serviço') or s.get('nome') or s.get('Nome') or '' %}
+    {% set valor_s = s.get('Valor do serviço') or s.get('valor') or s.get('Valor') or '' %}
+    {% if nome_s %}
+    {{ nome_s | tojson }}: {tipo: {{ s.get('tipo','clinica') | tojson }}, valor: {{ valor_s | tojson }}},
+    {% endif %}
+  {% endfor %}
+};
+
+function parseValor(str) {
+  if (!str) return 0;
+  // Remove "R$", espaços, pontos de milhar; troca vírgula decimal por ponto
+  let s = String(str).replace(/R\$/g,'').replace(/\s/g,'').trim();
+  s = s.replace(/\.(?=\d{3})/g, '');  // remove ponto de milhar
+  s = s.replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function fmt(n) {
+  return n.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function addLinha(desc='', valor='') {
+  const tbody = document.getElementById('itensBody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>
+      <input list="listaServicos" name="descricao[]" class="form-control form-control-sm desc"
+             value="${desc}" placeholder="Digite para buscar...">
+    </td>
+    <td>
+      <select name="tipo_svc[]" class="form-select form-select-sm">
+        <option value="clinica">Clínica</option>
+        <option value="petshop">Petshop</option>
+        <option value="produto">Produto</option>
+      </select>
+    </td>
+    <td><input type="number" name="qtd[]" class="form-control form-control-sm qtd" value="1" min="1"></td>
+    <td><input type="text" name="valor[]" class="form-control form-control-sm valor" value="${valor}" placeholder="0,00"></td>
+    <td><input type="text" name="desconto[]" class="form-control form-control-sm desconto" value="0" placeholder="0,00"></td>
+    <td class="subtotal text-end fw-semibold">R$ 0,00</td>
+    <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove();calcular();"><i class="bi bi-trash"></i></button></td>
+  `;
+  tbody.appendChild(tr);
+
+  // Auto-preenche valor ao escolher serviço
+  const descInput = tr.querySelector('.desc');
+  descInput.addEventListener('input', function() {
+    const svc = SERVICOS[this.value];
+    if (svc) {
+      tr.querySelector('.valor').value = parseValor(svc.valor).toFixed(2).replace('.', ',');
+      const sel = tr.querySelector('select');
+      if (svc.tipo) sel.value = svc.tipo === 'produto' ? 'produto' : (svc.tipo === 'petshop' ? 'petshop' : 'clinica');
+      calcular();
+    }
+  });
+
+  tr.querySelectorAll('.qtd, .valor, .desconto').forEach(inp =>
+    inp.addEventListener('input', calcular));
+
+  calcular();
+}
+
+function calcular() {
+  let total = 0;
+  document.querySelectorAll('#itensBody tr').forEach(tr => {
+    const q = parseFloat(tr.querySelector('.qtd').value || 1);
+    const v = parseValor(tr.querySelector('.valor').value);
+    const d = parseValor(tr.querySelector('.desconto').value);
+    const sub = (v * q) - d;
+    tr.querySelector('.subtotal').textContent = 'R$ ' + fmt(sub);
+    total += sub;
+  });
+  document.getElementById('totalGeral').textContent = 'R$ ' + fmt(total);
+}
+
+// Data de hoje no formato DD/MM/AAAA
+const hoje = new Date();
+document.getElementById('dataTicket').value =
+  String(hoje.getDate()).padStart(2,'0') + '/' +
+  String(hoje.getMonth()+1).padStart(2,'0') + '/' +
+  hoje.getFullYear();
+
+// Começa com uma linha
+addLinha();
+</script>
+{% endblock %}

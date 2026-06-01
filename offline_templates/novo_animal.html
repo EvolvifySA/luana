@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Novo Animal{% endblock %}
+{% block topbar_title %}Cadastrar Animal{% endblock %}
+{% block topbar_sub %}{{ cliente.nome if cliente else '' }}{% endblock %}
+
+{% block content %}
+<form method="post" style="max-width:760px;margin:0 auto">
+  <div class="card">
+    <div class="card-header"><i class="bi bi-heart-pulse me-2 text-azul"></i>Novo Animal{% if cliente %} <span class="text-muted fw-normal">— {{ cliente.nome }}</span>{% endif %}</div>
+    <div class="card-body p-4">
+
+      <div class="sec-label"><i class="bi bi-patch-heart"></i>Identificação</div>
+      <div class="row g-3 mb-3">
+        <div class="col-12">
+          <label class="form-label">Nome do animal <span class="text-danger">*</span></label>
+          <input type="text" name="nome" class="form-control" value="{{ form.get('nome','') }}" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Espécie</label>
+          <select name="especie" class="form-select">
+            <option value="">Selecionar...</option>
+            {% for e in ['Canina','Felina','Ave','Roedor','Outro'] %}
+            <option {% if form.get('especie')==e %}selected{% endif %}>{{ e }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Sexo</label>
+          <select name="sexo" class="form-select">
+            <option value="">Selecionar...</option>
+            <option {% if form.get('sexo')=='Macho' %}selected{% endif %}>Macho</option>
+            <option {% if form.get('sexo')=='Fêmea' %}selected{% endif %}>Fêmea</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="sec-label"><i class="bi bi-card-list"></i>Características</div>
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label">Raça</label><input type="text" name="raca" class="form-control" value="{{ form.get('raca','') }}"></div>
+        <div class="col-md-6"><label class="form-label">Pelagem / Cor</label><input type="text" name="pelagem" class="form-control" value="{{ form.get('pelagem','') }}"></div>
+        <div class="col-md-6"><label class="form-label">Data de nascimento</label><input type="date" name="nascimento" class="form-control" value="{{ form.get('nascimento','') }}"></div>
+        <div class="col-md-6"><label class="form-label">Nº do chip</label><input type="text" name="chip" class="form-control" value="{{ form.get('chip','') }}"></div>
+        <div class="col-12"><label class="form-label">Observações</label><textarea name="observacao" class="form-control" rows="2">{{ form.get('observacao','') }}</textarea></div>
+      </div>
+
+    </div>
+    <div class="card-footer bg-white d-flex justify-content-end gap-2 py-3" style="border-top:1px solid var(--line);border-radius:0 0 16px 16px">
+      <a href="{{ url_for('cliente', id_cliente=id_cliente) }}" class="btn btn-light-soft">Cancelar</a>
+      <button type="submit" class="btn btn-success px-4"><i class="bi bi-check-lg me-1"></i>Cadastrar animal</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
