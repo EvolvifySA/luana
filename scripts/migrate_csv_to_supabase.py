@@ -237,6 +237,7 @@ def import_clients(cur):
     complete = {r.get("#", "").strip().lower(): r for r in _read_csv(DATA_DIR / "clientes_completo.csv")}
     cadastro = {r.get("id_cliente", "").strip(): r for r in _read_csv(DATA_DIR / "clientes_cadastro.csv")}
     batch_id = _batch(cur, "clientes.csv", "clients", len(rows))
+    print(f"[migrate] clients: {len(rows)} linhas")
     client_map = {}
     for i, row in enumerate(rows, 1):
         name_key = (row.get("nome") or "").strip().lower()
@@ -246,6 +247,8 @@ def import_clients(cur):
         client_id = _upsert_client(cur, merged, "csv", batch_id, i)
         if client_id:
             client_map[row.get("id_cliente", "").strip()] = client_id
+        if i % 100 == 0 or i == len(rows):
+            print(f"[migrate] clients: {i}/{len(rows)}")
     return client_map
 
 
@@ -253,6 +256,7 @@ def import_animals(cur, client_map: dict[str, str]):
     rows = _read_csv(DATA_DIR / "animais.csv")
     details = {(r.get("id_cliente", "").strip(), r.get("id_animal", "").strip()): r for r in _read_csv(DATA_DIR / "animais_detalhes.csv")}
     batch_id = _batch(cur, "animais.csv", "animals", len(rows))
+    print(f"[migrate] animals: {len(rows)} linhas")
     animal_map = {}
     for i, row in enumerate(rows, 1):
         merged = dict(row)
@@ -264,6 +268,8 @@ def import_animals(cur, client_map: dict[str, str]):
         animal_id = _upsert_animal(cur, merged, client_id, "csv", batch_id, i)
         if animal_id:
             animal_map[(legacy_client_id, row.get("id_animal", "").strip())] = animal_id
+        if i % 100 == 0 or i == len(rows):
+            print(f"[migrate] animals: {i}/{len(rows)}")
     return animal_map
 
 
@@ -272,6 +278,7 @@ def import_services(cur):
     if not rows:
         return
     batch_id = _batch(cur, "servicos.csv", "services", len(rows))
+    print(f"[migrate] services: {len(rows)} linhas")
     for i, row in enumerate(rows, 1):
         name = (row.get("Nome do ServiÃ§o") or row.get("nome") or "").strip()
         if not name:
@@ -303,6 +310,8 @@ def import_services(cur):
             db_values,
         )
         _insert_import_row(cur, batch_id, "services", name, i, row, normalized)
+        if i % 100 == 0 or i == len(rows):
+            print(f"[migrate] services: {i}/{len(rows)}")
 
 
 def _find_client_id_by_legacy(cur, legacy_client_id: str) -> str | None:
@@ -335,6 +344,7 @@ def import_tickets(cur, client_map: dict[str, str], animal_map: dict[tuple[str, 
     if not rows:
         return
     batch_id = _batch(cur, "tickets.csv", "tickets", len(rows))
+    print(f"[migrate] tickets: {len(rows)} linhas")
     for i, row in enumerate(rows, 1):
         legacy_client_id = row.get("id_cliente", "").strip()
         legacy_animal_id = row.get("id_animal", "").strip()
@@ -389,6 +399,8 @@ def import_tickets(cur, client_map: dict[str, str], animal_map: dict[tuple[str, 
             """,
             db_values,
         )
+        if i % 100 == 0 or i == len(rows):
+            print(f"[migrate] tickets: {i}/{len(rows)}")
 
 
 def main():
@@ -396,22 +408,36 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Executa tudo em uma transaÃ§Ã£o e faz rollback.")
     args = parser.parse_args()
 
+    print("[migrate] conectando ao banco...")
     conn = _connect()
     conn.autocommit = False
     try:
         with conn.cursor() as cur:
+            print("[migrate] importando clientes...")
             client_map = import_clients(cur)
+            print("[migrate] importando animais...")
             animal_map = import_animals(cur, client_map)
+            print("[migrate] importando serviços...")
             import_services(cur)
+            print("[migrate] importando tickets...")
             import_tickets(cur, client_map, animal_map)
+            print("[migrate] importando consultas...")
             import_consultations(cur, client_map, animal_map)
+            print("[migrate] importando vacinas...")
             import_vaccinations(cur, client_map, animal_map)
+            print("[migrate] importando retornos de vacina...")
             import_vaccine_returns(cur, client_map, animal_map)
+            print("[migrate] importando exames...")
             import_exams(cur, client_map, animal_map)
+            print("[migrate] importando receituário...")
             import_prescriptions(cur, client_map, animal_map)
+            print("[migrate] importando pesagens...")
             import_weights(cur, client_map, animal_map)
+            print("[migrate] importando agendamentos...")
             import_appointments(cur, client_map, animal_map)
+            print("[migrate] importando cirurgias...")
             import_surgeries(cur, client_map, animal_map)
+            print("[migrate] importando anotações...")
             import_notes(cur, client_map, animal_map)
 
         if args.dry_run:
