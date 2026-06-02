@@ -28,6 +28,8 @@ from psycopg2.extras import Json
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "dados_exportados"
+MIGRATION_MAX_ROWS = 0
+MIGRATION_RECORD_TRACE = True
 
 
 def _env(key: str, default: str = "") -> str:
@@ -46,6 +48,12 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
         return []
     with path.open("r", encoding="utf-8-sig", newline="") as f:
         return list(csv.DictReader(f))
+
+
+def _maybe_limit(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    if MIGRATION_MAX_ROWS and len(rows) > MIGRATION_MAX_ROWS:
+        return rows[:MIGRATION_MAX_ROWS]
+    return rows
 
 
 def _checksum(path: Path) -> str:
@@ -108,6 +116,8 @@ def _batch(cur, source_file: str, entity_name: str, rows: int, imported_by: str 
 
 
 def _insert_import_row(cur, batch_id: str, entity_name: str, legacy_key: str | None, row_number: int | None, raw: dict, normalized: dict, status: str = "ok", error_message: str | None = None):
+    if not MIGRATION_RECORD_TRACE:
+        return
     cur.execute(
         """
         insert into public.import_rows
@@ -233,7 +243,7 @@ def _map_service_type(value: str | None) -> str:
 
 
 def import_clients(cur):
-    rows = _read_csv(DATA_DIR / "clientes.csv")
+    rows = _maybe_limit(_read_csv(DATA_DIR / "clientes.csv"))
     complete = {r.get("#", "").strip().lower(): r for r in _read_csv(DATA_DIR / "clientes_completo.csv")}
     cadastro = {r.get("id_cliente", "").strip(): r for r in _read_csv(DATA_DIR / "clientes_cadastro.csv")}
     batch_id = _batch(cur, "clientes.csv", "clients", len(rows))
@@ -253,7 +263,7 @@ def import_clients(cur):
 
 
 def import_animals(cur, client_map: dict[str, str]):
-    rows = _read_csv(DATA_DIR / "animais.csv")
+    rows = _maybe_limit(_read_csv(DATA_DIR / "animais.csv"))
     details = {(r.get("id_cliente", "").strip(), r.get("id_animal", "").strip()): r for r in _read_csv(DATA_DIR / "animais_detalhes.csv")}
     batch_id = _batch(cur, "animais.csv", "animals", len(rows))
     print(f"[migrate] animals: {len(rows)} linhas")
@@ -274,7 +284,7 @@ def import_animals(cur, client_map: dict[str, str]):
 
 
 def import_services(cur):
-    rows = _read_csv(DATA_DIR / "servicos.csv")
+    rows = _maybe_limit(_read_csv(DATA_DIR / "servicos.csv"))
     if not rows:
         return
     batch_id = _batch(cur, "servicos.csv", "services", len(rows))
@@ -340,7 +350,7 @@ def _resolve_ids(cur, client_map: dict[str, str], animal_map: dict[tuple[str, st
 
 
 def import_tickets(cur, client_map: dict[str, str], animal_map: dict[tuple[str, str], str]):
-    rows = _read_csv(DATA_DIR / "tickets.csv")
+    rows = _maybe_limit(_read_csv(DATA_DIR / "tickets.csv"))
     if not rows:
         return
     batch_id = _batch(cur, "tickets.csv", "tickets", len(rows))
@@ -406,7 +416,13 @@ def import_tickets(cur, client_map: dict[str, str], animal_map: dict[tuple[str, 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true", help="Executa tudo em uma transaÃ§Ã£o e faz rollback.")
+    parser.add_argument("--max-rows", type=int, default=0, help="Limita a importação por arquivo para uma amostra. 0 = sem limite.")
+    parser.add_argument("--no-trace", action="store_true", help="Não grava import_rows/import_batches. Útil para dry-run rápido.")
     args = parser.parse_args()
+
+    global MIGRATION_MAX_ROWS, MIGRATION_RECORD_TRACE
+    MIGRATION_MAX_ROWS = max(0, int(args.max_rows or 0))
+    MIGRATION_RECORD_TRACE = not args.no_trace and not args.dry_run
 
     print("[migrate] conectando ao banco...")
     conn = _connect()
