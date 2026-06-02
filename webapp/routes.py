@@ -11,6 +11,7 @@ import os
 
 import config
 from . import db
+from .pdf_utils import pdf_context, render_pdf_response
 
 SECOES = [
     ("consultas",   "Consultas"),
@@ -261,7 +262,7 @@ def register_routes(app):
                 "total_liquido":  f"{liquido:.2f}".replace(".", ","),
             }
             db.salvar_ticket(ticket)
-            return render_template("ticket.html", ticket=ticket, clinica=config.CLINICA)
+            return render_template("ticket.html", **pdf_context(ticket=ticket, clinica=config.CLINICA))
 
         return render_template("novo_ticket.html", cliente=cliente_dados, animal=animal,
                                id_cliente=id_cliente, id_animal=id_animal,
@@ -273,7 +274,19 @@ def register_routes(app):
         if not ticket:
             flash("Ticket não encontrado.", "warning")
             return redirect(url_for("dashboard"))
-        return render_template("ticket.html", ticket=ticket, clinica=config.CLINICA)
+        return render_template("ticket.html", **pdf_context(ticket=ticket, clinica=config.CLINICA))
+
+    @app.route("/ticket/<int:ticket_id>/pdf")
+    def ticket_pdf(ticket_id):
+        ticket = db.get_ticket(ticket_id)
+        if not ticket:
+            flash("Ticket não encontrado.", "warning")
+            return redirect(url_for("dashboard"))
+        return render_pdf_response(
+            "ticket.html",
+            f"ticket-{ticket_id}.pdf",
+            **pdf_context(ticket=ticket, clinica=config.CLINICA),
+        )
 
     # ─── Receitas ─────────────────────────────────────────────────────────────
     @app.route("/clientes/<id_cliente>/animais/<id_animal>/receita",
@@ -311,9 +324,37 @@ def register_routes(app):
                         if str(a.get("id_animal") or a.get("id", "")) == str(receita["id_animal"])), {})
         receita["oral_itens"]   = [l.strip() for l in (receita.get("uso_oral") or "").splitlines() if l.strip()]
         receita["topico_itens"] = [l.strip() for l in (receita.get("uso_topico") or "").splitlines() if l.strip()]
-        return render_template("receita_print.html", receita=receita,
-                               cliente=db.get_cliente(receita["id_cliente"]),
-                               animal=animal, clinica=config.CLINICA)
+        return render_template(
+            "receita_print.html",
+            **pdf_context(
+                receita=receita,
+                cliente=db.get_cliente(receita["id_cliente"]),
+                animal=animal,
+                clinica=config.CLINICA,
+            ),
+        )
+
+    @app.route("/receita/<int:receita_id>/pdf")
+    def receita_pdf(receita_id):
+        receita = db.get_receita(receita_id)
+        if not receita:
+            flash("Receita não encontrada.", "warning")
+            return redirect(url_for("dashboard"))
+        animais = db.get_animais_cliente(receita["id_cliente"])
+        animal  = next((a for a in animais
+                        if str(a.get("id_animal") or a.get("id", "")) == str(receita["id_animal"])), {})
+        receita["oral_itens"]   = [l.strip() for l in (receita.get("uso_oral") or "").splitlines() if l.strip()]
+        receita["topico_itens"] = [l.strip() for l in (receita.get("uso_topico") or "").splitlines() if l.strip()]
+        return render_pdf_response(
+            "receita_print.html",
+            f"receita-{receita_id}.pdf",
+            **pdf_context(
+                receita=receita,
+                cliente=db.get_cliente(receita["id_cliente"]),
+                animal=animal,
+                clinica=config.CLINICA,
+            ),
+        )
 
     # ─── PDF local ────────────────────────────────────────────────────────────
     @app.route("/pdf")

@@ -1,13 +1,4 @@
-# ─── Credenciais e ambiente ───────────────────────────────
-.env
-config.local.py
-
-# ─── Dados sensíveis (LGPD) — NUNCA versionar ─────────────
-dados_exportados/
-data/
-*.db
-*.sqlite
-*.sqlite3
+ 
 
 # ─── Python ───────────────────────────────────────────────
 __pycache__/

@@ -9,18 +9,14 @@
     .header { text-align: center; margin-bottom: 6px; }
     .header h2 { font-size: 16px; }
     .header p { font-size: 11px; color: #444; }
-
     .emitente { border: 1px solid #333; padding: 8px 12px; margin-bottom: 12px; display: flex; justify-content: space-between; }
     .emitente .left p { font-size: 11px; margin: 2px 0; }
     .emitente .vias { font-size: 11px; text-align: right; }
-
     fieldset { border: 1px solid #999; border-radius: 4px; padding: 8px 12px; margin-bottom: 10px; }
     fieldset legend { font-size: 11px; font-weight: bold; padding: 0 6px; color: #555; }
     fieldset p { font-size: 12px; margin: 2px 0; line-height: 1.5; }
     fieldset b { font-weight: bold; }
-
     .titulo-receita { text-align: center; font-size: 15px; font-weight: bold; margin: 18px 0 14px; text-decoration: underline; }
-
     .uso-titulo { text-align: center; font-size: 13px; font-weight: bold; text-decoration: underline; margin: 16px 0 12px; }
     .medicamento { margin-bottom: 14px; }
     .med-linha { display: flex; align-items: baseline; font-size: 13px; }
@@ -29,14 +25,11 @@
     .med-pontilhado { flex: 1; border-bottom: 1px dotted #333; margin: 0 6px; min-width: 40px; }
     .med-qtd { font-weight: bold; white-space: nowrap; }
     .med-instr { font-size: 12px; color: #333; margin-left: 22px; margin-top: 2px; }
-
     .obs { margin-top: 18px; font-size: 12px; }
     .assinatura { margin-top: 50px; text-align: center; }
     .assinatura .linha { border-top: 1px solid #333; width: 250px; margin: 0 auto 4px; }
     .assinatura p { font-size: 12px; }
-
     .data-local { text-align: right; margin-top: 25px; font-size: 12px; }
-
     @media print {
       body { padding: 12mm; }
       .no-print { display: none !important; }
@@ -47,17 +40,19 @@
 
 <div class="no-print" style="background:#f0f4f8;padding:10px;margin:-25px -25px 20px;display:flex;gap:10px;">
   <button onclick="window.print()" style="padding:8px 20px;background:#0d6efd;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;">
-    🖨️ Imprimir
+    Imprimir
   </button>
+  <a href="{{ url_for('receita_pdf', receita_id=receita.id) }}" target="_blank" style="padding:8px 16px;background:#198754;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;display:inline-block;">
+    Baixar PDF
+  </a>
   <button onclick="window.history.back()" style="padding:8px 16px;background:#6c757d;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;">
-    ← Voltar
+    Voltar
   </button>
   <span style="align-self:center;color:#666;font-size:12px;">
     {{ 'Receituário de Controle Especial' if receita.tipo == 'especial' else 'Receituário Simples' }}
   </span>
 </div>
 
-{# ── Cabeçalho ── #}
 {% if receita.tipo == 'especial' %}
 <div class="emitente">
   <div class="left">
@@ -89,7 +84,6 @@
 <hr style="margin:8px 0 14px;">
 {% endif %}
 
-{# ── Responsável ── #}
 <fieldset>
   <legend>Responsável</legend>
   <p><b>Nome:</b> {{ cliente.nome if cliente else '—' }}
@@ -98,7 +92,6 @@
   {% if cliente and cliente.endereco %}<p><b>Endereço:</b> {{ cliente.endereco }}</p>{% endif %}
 </fieldset>
 
-{# ── Animal ── #}
 <fieldset>
   <legend>Animal</legend>
   <p>
@@ -115,7 +108,6 @@
   {% if receita.tipo == 'especial' %}Receituário de Controle Especial{% else %}Receituário{% endif %}
 </div>
 
-{# ── Macro para renderizar medicamentos ── #}
 {% macro render_meds(itens) %}
   {% for item in itens %}
     {% set partes = item.split('---') %}

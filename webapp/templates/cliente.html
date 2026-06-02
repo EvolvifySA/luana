@@ -121,7 +121,7 @@
             <td>{{ t.nome_animal or '—' }}</td>
             <td class="text-end fw-bold">R$ {{ t.total_liquido or '0,00' }}</td>
             <td><span class="pill pill-soft"><i class="bi bi-clock"></i> {{ APP_MARCA }}</span></td>
-            <td class="text-end"><a href="{{ url_for('ver_ticket', ticket_id=t.id) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-printer"></i> Imprimir</a></td>
+            <td class="text-end"><a href="{{ url_for('ticket_pdf', ticket_id=t.id) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-printer"></i> PDF</a></td>
           </tr>
           {% endfor %}
           {% for t in tickets_imp %}
@@ -167,7 +167,7 @@
             <td class="text-muted">{{ r.data or '—' }}</td>
             <td>{{ r.veterinario or '—' }}</td>
             <td class="text-muted">{{ r.observacao or '—' }}</td>
-            <td class="text-end"><a href="{{ url_for('ver_receita', receita_id=r.id) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-printer"></i> Imprimir</a></td>
+            <td class="text-end"><a href="{{ url_for('receita_pdf', receita_id=r.id) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-printer"></i> PDF</a></td>
           </tr>
           {% endfor %}
         </tbody>
