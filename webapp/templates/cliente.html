@@ -38,7 +38,10 @@
           {% if cliente.celular %}<div class="info-row"><div class="ic"><i class="bi bi-whatsapp"></i></div><div><div class="k">Celular / WhatsApp</div><div class="v">{{ cliente.celular }}</div></div></div>{% endif %}
           {% if cliente.email %}<div class="info-row"><div class="ic"><i class="bi bi-envelope"></i></div><div><div class="k">E-mail</div><div class="v">{{ cliente.email }}</div></div></div>{% endif %}
           {% if cliente.endereco %}<div class="info-row"><div class="ic"><i class="bi bi-geo-alt"></i></div><div><div class="k">Endereço</div><div class="v">{{ cliente.endereco }}</div></div></div>{% endif %}
+          {% if cliente.bairro %}<div class="info-row"><div class="ic"><i class="bi bi-geo"></i></div><div><div class="k">Bairro</div><div class="v">{{ cliente.bairro }}</div></div></div>{% endif %}
           {% if cliente.cidade %}<div class="info-row"><div class="ic"><i class="bi bi-buildings"></i></div><div><div class="k">Cidade</div><div class="v">{{ cliente.cidade }}</div></div></div>{% endif %}
+          {% if cliente.estado %}<div class="info-row"><div class="ic"><i class="bi bi-flag"></i></div><div><div class="k">Estado</div><div class="v">{{ cliente.estado }}</div></div></div>{% endif %}
+          {% if cliente.cep %}<div class="info-row"><div class="ic"><i class="bi bi-mailbox"></i></div><div><div class="k">CEP</div><div class="v">{{ cliente.cep }}</div></div></div>{% endif %}
           <div class="info-row"><div class="ic"><i class="bi bi-calendar3"></i></div><div><div class="k">Cliente desde</div><div class="v">{{ cliente.data_cadastro or '—' }} · ID {{ id_cliente }}</div></div></div>
         {% else %}<p class="text-muted py-3">Dados não encontrados.</p>{% endif %}
       </div>
@@ -84,6 +87,7 @@
                   <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=aid, secao=sk) }}"
                      class="btn btn-xs {% if sk == secao_ativa and aid == id_animal_ativo %}btn-primary{% else %}btn-light-soft{% endif %}">{{ sl }}</a>
                   {% endfor %}
+                  <a href="{{ url_for('nova_consulta', id_cliente=id_cliente, id_animal=aid) }}" class="btn btn-xs btn-outline-success"><i class="bi bi-clipboard2-pulse"></i> Consulta</a>
                   <a href="{{ url_for('novo_ticket', id_cliente=id_cliente, id_animal=aid) }}" class="btn btn-xs btn-outline-primary"><i class="bi bi-receipt"></i> Ticket</a>
                 </div>
               </div>
@@ -116,11 +120,24 @@
         <tbody>
           {% for t in tickets_novos %}
           <tr>
-            <td><span class="fw-semibold text-azul">#{{ t.id }}</span> <span class="pill pill-blue">novo</span></td>
+            <td>
+              {% if t.id %}
+              <a href="{{ url_for('ticket_pdf', ticket_id=t.id) }}" target="_blank" class="fw-semibold text-azul">#{{ t.numero or t.id }}</a>
+              {% else %}
+              <span class="fw-semibold text-azul">#{{ t.id }}</span>
+              {% endif %}
+              <span class="pill pill-blue">novo</span>
+            </td>
             <td class="text-muted">{{ t.data or '—' }}</td>
-            <td>{{ t.nome_animal or '—' }}</td>
+            <td>{{ t.nome_animal or t.animal or '—' }}</td>
             <td class="text-end fw-bold">R$ {{ t.total_liquido or '0,00' }}</td>
-            <td><span class="pill pill-soft"><i class="bi bi-clock"></i> {{ APP_MARCA }}</span></td>
+            <td>
+              {% if t.pago %}
+              <span class="pill pill-green"><i class="bi bi-check"></i>Pago</span>
+              {% else %}
+              <span class="pill pill-amber"><i class="bi bi-clock"></i>{{ t.status or 'Pendente' }}</span>
+              {% endif %}
+            </td>
             <td class="text-end"><a href="{{ url_for('ticket_pdf', ticket_id=t.id) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-printer"></i> PDF</a></td>
           </tr>
           {% endfor %}
@@ -187,7 +204,11 @@
 <div class="card">
   <div class="card-header d-flex justify-content-between align-items-center">
     <span><i class="bi bi-clipboard2-pulse me-2 text-azul"></i>{{ secao_label }}</span>
+    {% if secao_ativa == 'consultas' %}
+    <a href="{{ url_for('nova_consulta', id_cliente=id_cliente, id_animal=id_animal_ativo) }}" class="btn btn-sm btn-success"><i class="bi bi-plus me-1"></i>Nova consulta</a>
+    {% else %}
     <a href="{{ url_for('novo_registro', id_cliente=id_cliente, id_animal=id_animal_ativo, tipo=secao_ativa.rstrip('s')) }}" class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>Adicionar</a>
+    {% endif %}
   </div>
   <div class="card-body p-0">
     {% if registros %}
@@ -197,6 +218,7 @@
           {% set primeiro = registros[0] %}
           {% for k in primeiro.keys() %}{% if k not in cols_ignorar %}<th>{{ k|replace('_',' ')|title }}</th>{% endif %}{% endfor %}
           {% if secao_ativa == 'exames' %}<th>PDF</th>{% endif %}
+          {% if secao_ativa == 'consultas' %}<th>Ações</th>{% endif %}
         </tr></thead>
         <tbody>
           {% for reg in registros %}
@@ -208,6 +230,14 @@
               {% if pdf and pdf != 'requer_navegador' %}<a href="{{ url_for('ver_pdf', f=pdf) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-file-earmark-pdf text-danger"></i> PDF</a>
               {% elif pdf == 'requer_navegador' %}<span class="text-muted" style="font-size:.72rem"><i class="bi bi-x-circle"></i> Indisponível</span>
               {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            {% endif %}
+            {% if secao_ativa == 'consultas' %}
+            <td class="text-nowrap">
+              {% if reg.get('id') %}
+              <a href="{{ url_for('editar_consulta', consulta_id=reg.get('id')) }}" class="btn btn-xs btn-light-soft"><i class="bi bi-pencil"></i></a>
+              <a href="{{ url_for('consulta_pdf', consulta_id=reg.get('id')) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-printer"></i></a>
+              {% endif %}
             </td>
             {% endif %}
           </tr>

@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar Consulta' if consulta.get('id') else 'Nova Consulta' }}{% endblock %}
+{% block topbar_title %}{{ 'Editar Consulta' if consulta.get('id') else 'Nova Consulta' }}{% endblock %}
+{% block topbar_sub %}{{ cliente.nome if cliente else '' }}{% if animal %} · {{ animal.get('nome_animal') or animal.get('nome') or '' }}{% endif %}{% endblock %}
+
+{% block content %}
+{% set consulta = consulta or {} %}
+
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <div class="breadcrumb-mini mb-2">
+      <a href="{{ url_for('dashboard') }}">Início</a> ›
+      <a href="{{ url_for('clientes') }}">Clientes</a> ›
+      <a href="{{ url_for('cliente', id_cliente=id_cliente) }}">{{ cliente.nome if cliente else 'Cliente' }}</a> ›
+      <span class="text-dark">{{ animal.get('nome_animal') or animal.get('nome') or 'Animal' }}</span>
+    </div>
+    <h4 class="fw-bold mb-0">{{ 'Editar Consulta' if consulta.get('id') else 'Nova Consulta' }}</h4>
+  </div>
+  {% if consulta.get('id') %}
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('consulta_pdf', consulta_id=consulta.get('id')) }}" target="_blank" class="btn btn-outline-success">
+      <i class="bi bi-printer me-1"></i>PDF
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<form method="post">
+  <input type="hidden" name="id_cliente" value="{{ id_cliente }}">
+  <input type="hidden" name="id_animal" value="{{ id_animal }}">
+
+  <div class="card mb-3">
+    <div class="card-header"><i class="bi bi-calendar2-week me-2 text-azul"></i>Dados da consulta</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Data da consulta</label>
+          <input type="date" name="consultation_date" class="form-control" value="{{ consulta.get('data_da_consulta','') }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">É retorno?</label>
+          <select name="is_return" class="form-select">
+            <option value="0" {% if not consulta.get('is_retorno') %}selected{% endif %}>Não</option>
+            <option value="1" {% if consulta.get('is_retorno') %}selected{% endif %}>Sim</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Marcar retorno</label>
+          <input type="date" name="return_date" class="form-control" value="{{ consulta.get('data_retorno','') }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Status</label>
+          <select name="status" class="form-select">
+            {% for st, lbl in [('draft','Rascunho'), ('open','Aberta'), ('done','Concluída'), ('cancelled','Cancelada')] %}
+            <option value="{{ st }}" {% if consulta.get('status','draft') == st %}selected{% endif %}>{{ lbl }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Realizado por</label>
+          <input type="text" name="veterinarian" class="form-control" value="{{ consulta.get('veterinario','') }}" placeholder="Nome do veterinário">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">CRMV</label>
+          <input type="text" name="crmv" class="form-control" value="{{ consulta.get('crmv','') }}" placeholder="02956/PB">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header"><i class="bi bi-chat-left-text me-2 text-azul"></i>Consulta Padrão</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label">Queixa Principal</label>
+          <textarea name="chief_complaint" class="form-control" rows="3">{{ consulta.get('queixa_principal','') }}</textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Anamnese</label>
+          <textarea name="anamnesis" class="form-control" rows="4">{{ consulta.get('anamnese','') }}</textarea>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Sistema Digestório</label>
+          <textarea name="digestive_system" class="form-control" rows="3">{{ consulta.get('sistema_digestorio','') }}</textarea>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Sistema Cardiorrespiratório</label>
+          <textarea name="cardiorespiratory_system" class="form-control" rows="3">{{ consulta.get('sistema_cardiorrespiratorio','') }}</textarea>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Sistema Gênito Urinário</label>
+          <textarea name="genitourinary_system" class="form-control" rows="3">{{ consulta.get('sistema_genito_urinario','') }}</textarea>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Sistema Nervoso e Locomotor</label>
+          <textarea name="nervous_musculoskeletal_system" class="form-control" rows="3">{{ consulta.get('sistema_nervoso_locomotor','') }}</textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header"><i class="bi bi-clipboard2-pulse me-2 text-azul"></i>Exame Clínico</div>
+    <div class="card-body">
+      <div class="row g-3">
+        {% for field, label in [
+          ('central_temperature','Temperatura central'),
+          ('peripheral_temperature','Temperatura periférica'),
+          ('heart_rate','Freq. cardíaca'),
+          ('respiratory_rate','Freq. respiratória'),
+          ('tpc','TPC'),
+          ('lymph_nodes','Linfonodos'),
+          ('mucosa','Mucosa'),
+          ('hydration','Hidratação'),
+          ('ectoparasites','Ectoparasitas'),
+          ('abdominal_palpation','Palpação abdominal'),
+          ('cardiac_auscultation','Ausculta cardíaca'),
+          ('pulmonary_auscultation','Ausculta pulmonar'),
+          ('blood_pressure','Pressão arterial'),
+          ('glycemia','Glicemia'),
+          ('delta','Delta'),
+          ('weight','Peso')
+        ] %}
+        <div class="col-md-3 col-6">
+          <label class="form-label">{{ label }}</label>
+          <input type="text" name="{{ field }}" class="form-control" value="{{ consulta.get(field, '') }}">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header"><i class="bi bi-journal-medical me-2 text-azul"></i>Conduta e Observações</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label">Suspeita Clínica</label>
+          <textarea name="clinical_suspicion" class="form-control" rows="3">{{ consulta.get('suspeita_clinica','') }}</textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Exames solicitados</label>
+          <textarea name="requested_exams" class="form-control" rows="3">{{ consulta.get('exames_solicitados','') }}</textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Diagnóstico</label>
+          <textarea name="diagnosis" class="form-control" rows="3">{{ consulta.get('diagnostico','') }}</textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Tratamento ambulatorial</label>
+          <textarea name="outpatient_treatment" class="form-control" rows="4">{{ consulta.get('tratamento_ambulatorial','') }}</textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Sistema Tegumentares e Anexos</label>
+          <textarea name="integumentary_system" class="form-control" rows="3">{{ consulta.get('sistema_tegumentares_anexos','') }}</textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Doenças e Tratamentos anteriores</label>
+          <textarea name="previous_diseases_treatments" class="form-control" rows="3">{{ consulta.get('doencas_tratamentos_anteriores','') }}</textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Observações</label>
+          <textarea name="observations" class="form-control" rows="4">{{ consulta.get('observacoes','') }}</textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between gap-2 mb-4 flex-wrap">
+    <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=id_animal, secao='consultas') }}" class="btn btn-light-soft">
+      <i class="bi bi-arrow-left me-1"></i>Cancelar
+    </a>
+    <div class="d-flex gap-2 flex-wrap">
+      <button type="submit" name="acao" value="salvar" class="btn btn-primary px-4">
+        <i class="bi bi-save me-1"></i>{{ 'Atualizar' if consulta.get('id') else 'Salvar rascunho' }}
+      </button>
+      <button type="submit" name="acao" value="finalizar" class="btn btn-success px-4">
+        <i class="bi bi-check2-circle me-1"></i>Finalizar consulta
+      </button>
+      <button type="submit" name="acao" value="cancelar" class="btn btn-outline-danger px-4">
+        <i class="bi bi-x-circle me-1"></i>Cancelar consulta
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}

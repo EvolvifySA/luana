@@ -56,6 +56,8 @@ create table if not exists public.clients (
   email text,
   address text,
   city text,
+  neighborhood text,
+  state text,
   zip_code text,
   birth_date date,
   notes text,
@@ -79,6 +81,9 @@ create index if not exists idx_clients_name_lower on public.clients (lower(name)
 create index if not exists idx_clients_legacy_client_id on public.clients (legacy_client_id);
 create index if not exists idx_clients_cpf on public.clients (cpf);
 
+alter table public.clients add column if not exists neighborhood text;
+alter table public.clients add column if not exists state text;
+
 -- ---------------------------------------------------------------------
 -- Animais
 -- ---------------------------------------------------------------------
@@ -93,6 +98,7 @@ create table if not exists public.animals (
   birth_date date,
   coat text,
   chip text,
+  castrado boolean,
   card_number text,
   deceased_at date,
   notes text,
@@ -116,6 +122,8 @@ $$;
 create index if not exists idx_animals_client_id on public.animals (client_id);
 create index if not exists idx_animals_legacy_animal_id on public.animals (legacy_animal_id);
 create index if not exists idx_animals_name_lower on public.animals (lower(name));
+
+alter table public.animals add column if not exists castrado boolean;
 
 -- ---------------------------------------------------------------------
 -- Serviços
@@ -304,14 +312,48 @@ create table if not exists public.consultations (
   animal_id uuid references public.animals(id) on delete cascade,
   legacy_consultation_id text unique,
   consultation_date date,
+  is_return boolean not null default false,
   return_date date,
   start_time time,
   end_time time,
   duration_minutes integer,
   veterinarian text,
+  crmv text,
+  status text not null default 'draft' check (status in ('draft', 'open', 'done', 'cancelled')),
+  chief_complaint text,
+  anamnesis text,
+  digestive_system text,
+  cardiorespiratory_system text,
+  genitourinary_system text,
+  nervous_musculoskeletal_system text,
+  central_temperature text,
+  peripheral_temperature text,
+  heart_rate text,
+  respiratory_rate text,
+  tpc text,
+  lymph_nodes text,
+  mucosa text,
+  hydration text,
+  ectoparasites text,
+  abdominal_palpation text,
+  cardiac_auscultation text,
+  pulmonary_auscultation text,
+  blood_pressure text,
+  glycemia text,
+  delta text,
+  weight text,
+  clinical_suspicion text,
+  requested_exams text,
+  diagnosis text,
+  outpatient_treatment text,
+  integumentary_system text,
+  previous_diseases_treatments text,
+  observations text,
   notes text,
   source text not null default 'csv' check (source in ('manual', 'csv', 'import', 'system')),
   source_payload jsonb not null default '{}'::jsonb,
+  completed_at timestamptz,
+  completed_by text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -326,9 +368,53 @@ begin
 end
 $$;
 
+alter table public.consultations add column if not exists is_return boolean not null default false;
+alter table public.consultations add column if not exists crmv text;
+alter table public.consultations add column if not exists status text not null default 'draft';
+alter table public.consultations add column if not exists chief_complaint text;
+alter table public.consultations add column if not exists anamnesis text;
+alter table public.consultations add column if not exists digestive_system text;
+alter table public.consultations add column if not exists cardiorespiratory_system text;
+alter table public.consultations add column if not exists genitourinary_system text;
+alter table public.consultations add column if not exists nervous_musculoskeletal_system text;
+alter table public.consultations add column if not exists central_temperature text;
+alter table public.consultations add column if not exists peripheral_temperature text;
+alter table public.consultations add column if not exists heart_rate text;
+alter table public.consultations add column if not exists respiratory_rate text;
+alter table public.consultations add column if not exists tpc text;
+alter table public.consultations add column if not exists lymph_nodes text;
+alter table public.consultations add column if not exists mucosa text;
+alter table public.consultations add column if not exists hydration text;
+alter table public.consultations add column if not exists ectoparasites text;
+alter table public.consultations add column if not exists abdominal_palpation text;
+alter table public.consultations add column if not exists cardiac_auscultation text;
+alter table public.consultations add column if not exists pulmonary_auscultation text;
+alter table public.consultations add column if not exists blood_pressure text;
+alter table public.consultations add column if not exists glycemia text;
+alter table public.consultations add column if not exists delta text;
+alter table public.consultations add column if not exists weight text;
+alter table public.consultations add column if not exists clinical_suspicion text;
+alter table public.consultations add column if not exists requested_exams text;
+alter table public.consultations add column if not exists diagnosis text;
+alter table public.consultations add column if not exists outpatient_treatment text;
+alter table public.consultations add column if not exists integumentary_system text;
+alter table public.consultations add column if not exists previous_diseases_treatments text;
+alter table public.consultations add column if not exists observations text;
+alter table public.consultations add column if not exists completed_at timestamptz;
+alter table public.consultations add column if not exists completed_by text;
+alter table public.consultations add column if not exists notes text;
+alter table public.consultations add column if not exists consultation_date date;
+alter table public.consultations add column if not exists return_date date;
+alter table public.consultations add column if not exists start_time time;
+alter table public.consultations add column if not exists end_time time;
+alter table public.consultations add column if not exists duration_minutes integer;
+alter table public.consultations add column if not exists veterinarian text;
+
 create index if not exists idx_consultations_client_id on public.consultations (client_id);
 create index if not exists idx_consultations_animal_id on public.consultations (animal_id);
 create index if not exists idx_consultations_date on public.consultations (consultation_date desc);
+create index if not exists idx_consultations_status on public.consultations (status);
+create index if not exists idx_consultations_return_date on public.consultations (return_date desc);
 
 -- ---------------------------------------------------------------------
 -- Vacinas

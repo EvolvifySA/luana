@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Consulta — {{ animal.get('nome_animal') or animal.get('nome') or '' }}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; color: #1a1a1a; }
+    .header { display: flex; align-items: flex-start; gap: 20px; border-bottom: 2px solid #333; padding-bottom: 12px; margin-bottom: 14px; }
+    .logo { width: 80px; height: 80px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #999; overflow: hidden; }
+    .clinica h2 { font-size: 15px; margin-bottom: 4px; text-align: center; }
+    .clinica p { font-size: 11px; color: #444; margin: 1px 0; text-align: center; }
+    .box { border: 1px solid #999; border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+    .box legend, .legend { font-size: 11px; font-weight: bold; padding: 0 6px; color: #555; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
+    .kv p { font-size: 12px; margin: 2px 0; line-height: 1.45; }
+    .kv b { font-weight: bold; }
+    .title { text-align: center; font-size: 20px; font-weight: bold; margin: 18px 0 16px; }
+    .sec { margin-bottom: 18px; }
+    .sec h3 { font-size: 13px; font-weight: bold; margin-bottom: 6px; }
+    .txt { white-space: pre-line; line-height: 1.5; font-size: 12px; }
+    .line { border-top: 1px solid #bbb; margin: 14px 0; }
+    @media print {
+      body { padding: 12mm; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="no-print" style="background:#f0f4f8;padding:10px;margin:-20px -20px 20px;display:flex;gap:10px;">
+  <button onclick="window.print()" style="padding:8px 20px;background:#0d6efd;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;">
+    Imprimir
+  </button>
+  <a href="{{ url_for('consulta_pdf', consulta_id=consulta.id) }}" target="_blank" style="padding:8px 16px;background:#198754;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;display:inline-block;">
+    Baixar PDF
+  </a>
+  <a href="{{ url_for('editar_consulta', consulta_id=consulta.id) }}" style="padding:8px 16px;background:#6c757d;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;display:inline-block;text-decoration:none;">
+    Voltar
+  </a>
+</div>
+
+<div class="header">
+  <div class="logo">
+    {% if logo_src %}
+    <img src="{{ logo_src }}" alt="Logo" style="max-width:100%;max-height:100%;object-fit:contain;">
+    {% else %}
+    LOGO
+    {% endif %}
+  </div>
+  <div class="clinica" style="flex:1">
+    <h2>{{ clinica.nome }}</h2>
+    {% if clinica.endereco or clinica.cidade %}
+    <p>{{ clinica.endereco }}{% if clinica.endereco and clinica.cidade %}, {% endif %}{{ clinica.cidade }}{% if clinica.cep %} — CEP {{ clinica.cep }}{% endif %}</p>
+    {% endif %}
+    {% if clinica.tel1 or clinica.tel2 %}
+    <p>Telefone: {{ clinica.tel1 }}{% if clinica.tel2 %} &nbsp; {{ clinica.tel2 }}{% endif %}</p>
+    {% endif %}
+    {% if clinica.email %}<p>Email: {{ clinica.email }}</p>{% endif %}
+    {% if clinica.cnpj %}<p>CNPJ: {{ clinica.cnpj }}</p>{% endif %}
+  </div>
+</div>
+
+<div class="box">
+  <div class="legend">Responsável</div>
+  <div class="kv">
+    <p><b>Nome:</b> {{ cliente.nome if cliente else '—' }} {% if cliente and cliente.cpf %}&nbsp;&nbsp; <b>CPF:</b> {{ cliente.cpf }}{% endif %}</p>
+    <p><b>Celular:</b> {{ cliente.celular or '—' }}</p>
+    <p><b>Endereço:</b> {{ cliente.endereco or '—' }}{% if cliente and cliente.cep %} &nbsp; <b>CEP:</b> {{ cliente.cep }}{% endif %}{% if cliente and cliente.bairro %} &nbsp; <b>Bairro:</b> {{ cliente.bairro }}{% endif %}</p>
+    <p><b>Cidade:</b> {{ cliente.cidade or '—' }} &nbsp; <b>Estado:</b> {{ cliente.estado or '—' }}</p>
+  </div>
+</div>
+
+<div class="box">
+  <div class="legend">Animal</div>
+  <div class="kv">
+    <p>
+      <b>Nome:</b> {{ animal.get('nome_animal') or animal.get('nome') or '—' }}
+      &nbsp; <b>Espécie:</b> {{ animal.especie or '—' }}
+      &nbsp; <b>Raça:</b> {{ animal.raca or '—' }}
+      &nbsp; <b>Sexo:</b> {{ animal.sexo or '—' }}
+      &nbsp; <b>Pelagem:</b> {{ animal.pelagem or '—' }}
+      &nbsp; <b>Peso:</b> {{ consulta.peso or animal.peso or '—' }} Kg
+    </p>
+    <p><b>Nascimento:</b> {{ animal.nascimento or '—' }} &nbsp; <b>Idade:</b> {{ animal_idade or '—' }} &nbsp; <b>Castrado:</b> {{ animal.castrado_label or animal.castrado or '—' }}</p>
+  </div>
+</div>
+
+<div class="box">
+  <div class="legend">Dados da Consulta</div>
+  <div class="kv">
+    <p><b>Data:</b> {{ consulta.data_da_consulta or '—' }} &nbsp; <b>Realizado por:</b> {{ consulta.veterinario or '—' }} &nbsp; <b>CRMV:</b> {{ consulta.crmv or '—' }}</p>
+    <p><b>É retorno?</b> {{ 'Sim' if consulta.is_retorno else 'Não' }}{% if consulta.data_retorno %} &nbsp; <b>Retorno:</b> {{ consulta.data_retorno }}{% endif %}</p>
+  </div>
+</div>
+
+<div class="title">Consulta</div>
+
+<div class="sec">
+  <h3>Queixa principal:</h3>
+  <div class="txt">{{ consulta.queixa_principal or '—' }}</div>
+</div>
+
+<div class="sec">
+  <h3>Anamnese:</h3>
+  <div class="txt">{{ consulta.anamnese or '—' }}</div>
+</div>
+
+<div class="sec">
+  <h3>Sistema Digestório:</h3>
+  <div class="txt">{{ consulta.sistema_digestorio or '—' }}</div>
+</div>
+
+<div class="sec">
+  <h3>Sistema Cardiorrespiratório:</h3>
+  <div class="txt">{{ consulta.sistema_cardiorrespiratorio or '—' }}</div>
+</div>
+
+<div class="sec">
+  <h3>Sistema Gênito Urinário:</h3>
+  <div class="txt">{{ consulta.sistema_genito_urinario or '—' }}</div>
+</div>
+
+<div class="sec">
+  <h3>Sistema Nervoso e Locomotor:</h3>
+  <div class="txt">{{ consulta.sistema_nervoso_locomotor or '—' }}</div>
+</div>
+
+<div class="sec">
+  <h3>Exame Clínico:</h3>
+  <div class="txt">
+Temperatura central: {{ consulta.temperatura_central or '—' }}
+Temperatura periférica: {{ consulta.temperatura_periferica or '—' }}
+Freq. cardíaca: {{ consulta.freq_cardiaca or '—' }}
+Freq. respiratória: {{ consulta.freq_respiratoria or '—' }}
+TPC: {{ consulta.tpc or '—' }}
+Linfonodos: {{ consulta.linfonodos or '—' }}
+Mucosa: {{ consulta.mucosa or '—' }}
+Hidratação: {{ consulta.hidratacao or '—' }}
+Ectoparasitas: {{ consulta.ectoparasitas or '—' }}
+Palpação abdominal: {{ consulta.palpacao_abdominal or '—' }}
+Ausculta cardíaca: {{ consulta.ausculta_cardiaca or '—' }}
+Ausculta pulmonar: {{ consulta.ausculta_pulmonar or '—' }}
+Pressão arterial: {{ consulta.pressao_arterial or '—' }}
+Glicemia: {{ consulta.glicemia or '—' }}
+Delta: {{ consulta.delta or '—' }}
+Peso: {{ consulta.peso or '—' }}
+  </div>
+</div>
+
+<div class="sec">
+  <h3>Suspeita Clínica:</h3>
+  <div class="txt">{{ consulta.suspeita_clinica or '—' }}</div>
+</div>
+
+<div class="sec">
+  <h3>Exames solicitados:</h3>
+  <div class="txt">{{ consulta.exames_solicitados or '—' }}</div>
+</div>
+
+<div class="sec">
+  <h3>Diagnóstico:</h3>
+  <div class="txt">{{ consulta.diagnostico or '—' }}</div>
+</div>
+
+<div class="sec">
+  <h3>Tratamento ambulatorial:</h3>
+  <div class="txt">{{ consulta.tratamento_ambulatorial or '—' }}</div>
+</div>
+
+<div class="sec">
+  <h3>Sistema Tegumentares e Anexos:</h3>
+  <div class="txt">{{ consulta.sistema_tegumentares_anexos or '—' }}</div>
+</div>
+
+<div class="sec">
+  <h3>Doenças e Tratamentos anteriores:</h3>
+  <div class="txt">{{ consulta.doencas_tratamentos_anteriores or '—' }}</div>
+</div>
+
+<div class="sec">
+  <h3>Observações:</h3>
+  <div class="txt">{{ consulta.observacoes or '—' }}</div>
+</div>
+
+</body>
+</html>

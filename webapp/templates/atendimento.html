@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% from "_macros.html" import avatar %}
-{% block title %}{{ 'Emitir Receita' if acao == 'receita' else 'Emitir Ticket' }}{% endblock %}
-{% block topbar_title %}{{ 'Emitir Receita' if acao == 'receita' else 'Emitir Ticket' }}{% endblock %}
+{% block title %}{{ 'Emitir Receita' if acao == 'receita' else 'Emitir Consulta' if acao == 'consulta' else 'Emitir Ticket' }}{% endblock %}
+{% block topbar_title %}{{ 'Emitir Receita' if acao == 'receita' else 'Emitir Consulta' if acao == 'consulta' else 'Emitir Ticket' }}{% endblock %}
 {% block topbar_sub %}Busque o cliente e inicie o atendimento{% endblock %}
 
 {% block content %}
 {% set is_receita = (acao == 'receita') %}
+{% set is_consulta = (acao == 'consulta') %}
 
 <div class="card mb-3">
   <div class="card-body">
@@ -18,7 +19,7 @@
       </div>
       <button class="btn btn-primary px-4"><i class="bi bi-search me-1"></i>Buscar</button>
     </form>
-    <div class="text-muted mt-2" style="font-size:.78rem">Selecione o cliente, escolha o animal e emita {{ 'a receita' if is_receita else 'o ticket' }}.</div>
+    <div class="text-muted mt-2" style="font-size:.78rem">Selecione o cliente, escolha o animal e emita {{ 'a receita' if is_receita else 'a consulta' if is_consulta else 'o ticket' }}.</div>
   </div>
 </div>
 
@@ -44,9 +45,9 @@
             {% for a in item.animais %}
             {% set aid = a.get('id_animal') or a.get('id') or '' %}
             {% set nome_a = a.get('nome_animal') or a.get('nome') or '?' %}
-            <a href="{{ url_for('nova_receita' if is_receita else 'novo_ticket', id_cliente=c.id_cliente, id_animal=aid) }}"
-               class="btn btn-sm {{ 'btn-success' if is_receita else 'btn-primary' }}">
-              <i class="bi bi-heart-pulse me-1"></i>{{ nome_a }} <i class="bi bi-arrow-right-short"></i>
+            <a href="{{ url_for('nova_consulta' if is_consulta else 'nova_receita' if is_receita else 'novo_ticket', id_cliente=c.id_cliente, id_animal=aid) }}"
+               class="btn btn-sm {{ 'btn-outline-success' if is_consulta else 'btn-success' if is_receita else 'btn-primary' }}">
+              <i class="bi bi-{{ 'clipboard2-pulse' if is_consulta else 'capsule' if is_receita else 'receipt' }} me-1"></i>{{ nome_a }} <i class="bi bi-arrow-right-short"></i>
             </a>
             {% endfor %}
             {% else %}

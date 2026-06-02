@@ -647,6 +647,34 @@ def _parse_valor(texto):
         return 0.0
 
 
+def _parse_bool(valor):
+    if valor is None:
+        return None
+    if isinstance(valor, bool):
+        return valor
+    texto = str(valor).strip().lower()
+    if texto in {"1", "true", "sim", "s", "yes", "y", "on"}:
+        return True
+    if texto in {"0", "false", "nao", "não", "n", "no", "off"}:
+        return False
+    return None
+
+
+def _parse_date(valor):
+    if not valor:
+        return None
+    texto = str(valor).strip()
+    if not texto:
+        return None
+    from datetime import datetime
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(texto, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
 def _parse_data(texto):
     """Extrai (ano, mes) de uma data DD/MM/AAAA ou DD-MM-AAAA. Retorna None se falhar."""
     if not texto:
@@ -869,6 +897,7 @@ def _pg_fetchone(sql, params=()):
 def _map_client_row(row):
     if not row:
         return None
+    created_at = row.get("created_at")
     return {
         "id_cliente": str(row["id"]),
         "nome": row.get("name") or "",
@@ -878,6 +907,11 @@ def _map_client_row(row):
         "email": row.get("email") or "",
         "endereco": row.get("address") or "",
         "cidade": row.get("city") or "",
+        "bairro": row.get("neighborhood") or "",
+        "estado": row.get("state") or "",
+        "cep": row.get("zip_code") or "",
+        "data_cadastro": created_at.strftime("%d/%m/%Y") if created_at else "",
+        "criado_em": created_at.isoformat() if created_at else "",
         "nascimento": row.get("birth_date").isoformat() if row.get("birth_date") else "",
         "observacao": row.get("notes") or "",
         "source": row.get("source") or "",
@@ -888,6 +922,12 @@ def _map_client_row(row):
 def _map_animal_row(row):
     if not row:
         return None
+    castrado = row.get("castrado")
+    castrado_label = ""
+    if castrado is True:
+        castrado_label = "SIM"
+    elif castrado is False:
+        castrado_label = "NÃO"
     return {
         "id_animal": str(row["id"]),
         "id_cliente": str(row["client_id"]),
@@ -899,9 +939,82 @@ def _map_animal_row(row):
         "nascimento": row.get("birth_date").isoformat() if row.get("birth_date") else "",
         "pelagem": row.get("coat") or "",
         "chip": row.get("chip") or "",
+        "castrado": castrado,
+        "castrado_label": castrado_label,
         "observacao": row.get("notes") or "",
         "source": row.get("source") or "",
         "legacy_animal_id": row.get("legacy_animal_id") or "",
+    }
+
+
+def _map_consultation_row(row):
+    if not row:
+        return None
+    return {
+        "id": str(row["id"]),
+        "id_cliente": str(row["client_id"]),
+        "id_animal": str(row["animal_id"]) if row.get("animal_id") else "",
+        "data_da_consulta": row["consultation_date"].isoformat() if row.get("consultation_date") else "",
+        "consultation_date": row["consultation_date"].isoformat() if row.get("consultation_date") else "",
+        "is_retorno": bool(row.get("is_return")),
+        "is_return": bool(row.get("is_return")),
+        "data_retorno": row["return_date"].isoformat() if row.get("return_date") else "",
+        "return_date": row["return_date"].isoformat() if row.get("return_date") else "",
+        "status": row.get("status") or "draft",
+        "chief_complaint": row.get("chief_complaint") or "",
+        "queixa_principal": row.get("chief_complaint") or "",
+        "anamnesis": row.get("anamnesis") or "",
+        "anamnese": row.get("anamnesis") or "",
+        "digestive_system": row.get("digestive_system") or "",
+        "sistema_digestorio": row.get("digestive_system") or "",
+        "cardiorespiratory_system": row.get("cardiorespiratory_system") or "",
+        "sistema_cardiorrespiratorio": row.get("cardiorespiratory_system") or "",
+        "genitourinary_system": row.get("genitourinary_system") or "",
+        "sistema_genito_urinario": row.get("genitourinary_system") or "",
+        "nervous_musculoskeletal_system": row.get("nervous_musculoskeletal_system") or "",
+        "sistema_nervoso_locomotor": row.get("nervous_musculoskeletal_system") or "",
+        "central_temperature": row.get("central_temperature") or "",
+        "peripheral_temperature": row.get("peripheral_temperature") or "",
+        "freq_cardiaca": row.get("heart_rate") or "",
+        "heart_rate": row.get("heart_rate") or "",
+        "freq_respiratoria": row.get("respiratory_rate") or "",
+        "respiratory_rate": row.get("respiratory_rate") or "",
+        "tpc": row.get("tpc") or "",
+        "linfonodos": row.get("lymph_nodes") or "",
+        "mucosa": row.get("mucosa") or "",
+        "hidratacao": row.get("hydration") or "",
+        "ectoparasitas": row.get("ectoparasites") or "",
+        "palpacao_abdominal": row.get("abdominal_palpation") or "",
+        "ausculta_cardiaca": row.get("cardiac_auscultation") or "",
+        "ausculta_pulmonar": row.get("pulmonary_auscultation") or "",
+        "pressao_arterial": row.get("blood_pressure") or "",
+        "glicemia": row.get("glycemia") or "",
+        "delta": row.get("delta") or "",
+        "peso": row.get("weight") or "",
+        "clinical_suspicion": row.get("clinical_suspicion") or "",
+        "suspeita_clinica": row.get("clinical_suspicion") or "",
+        "requested_exams": row.get("requested_exams") or "",
+        "exames_solicitados": row.get("requested_exams") or "",
+        "diagnosis": row.get("diagnosis") or "",
+        "diagnostico": row.get("diagnosis") or "",
+        "outpatient_treatment": row.get("outpatient_treatment") or "",
+        "tratamento_ambulatorial": row.get("outpatient_treatment") or "",
+        "integumentary_system": row.get("integumentary_system") or "",
+        "sistema_tegumentares_anexos": row.get("integumentary_system") or "",
+        "previous_diseases_treatments": row.get("previous_diseases_treatments") or "",
+        "doencas_tratamentos_anteriores": row.get("previous_diseases_treatments") or "",
+        "observations": row.get("observations") or row.get("notes") or "",
+        "observacoes": row.get("observations") or row.get("notes") or "",
+        "veterinarian": row.get("veterinarian") or "",
+        "veterinario": row.get("veterinarian") or "",
+        "crmv": row.get("crmv") or "",
+        "completed_at": row.get("completed_at").isoformat() if row.get("completed_at") else "",
+        "finalizado_em": row.get("completed_at").isoformat() if row.get("completed_at") else "",
+        "completed_by": row.get("completed_by") or "",
+        "finalizado_por": row.get("completed_by") or "",
+        "source": row.get("source") or "",
+        "source_payload": row.get("source_payload") or {},
+        "legacy_consultation_id": row.get("legacy_consultation_id") or "",
     }
 
 
@@ -942,6 +1055,10 @@ def _resolve_ticket_row(ticket_id):
 
 def _resolve_receita_row(receita_id):
     return _pg_fetchone("select * from public.prescriptions where id::text = %s limit 1", (str(receita_id),))
+
+
+def _resolve_consultation_row(consulta_id):
+    return _pg_fetchone("select * from public.consultations where id::text = %s limit 1", (str(consulta_id),))
 
 
 def garantir_usuario_padrao():
@@ -1080,7 +1197,8 @@ def get_registros_animal(id_cliente, id_animal, secao):
 
     if secao == "consultas":
         rows = _pg_fetchall(
-            """select consultation_date as data, notes as descricao, veterinarian, source_payload
+            """select id, consultation_date as data, coalesce(chief_complaint, notes, '') as descricao,
+                      veterinarian, diagnosis, observations, is_return, return_date, status, source_payload
                  from public.consultations
                 where client_id = %s and animal_id = %s
                 order by consultation_date desc""",
@@ -1131,13 +1249,38 @@ def get_registros_animal(id_cliente, id_animal, secao):
         return _LEGACY_get_registros_animal(id_cliente, id_animal, secao)
     return [
         {
+            "id": str(r.get("id")) if r.get("id") else "",
             "data": (r.get("data").strftime("%d/%m/%Y") if r.get("data") else ""),
             "descricao": r.get("descricao") or "",
             "veterinario": r.get("veterinarian") or "",
-            "observacao": r.get("notes") or "",
+            "observacao": r.get("observations") or r.get("notes") or "",
+            "diagnostico": r.get("diagnosis") or "",
+            "status": r.get("status") or "",
+            "retorno": "Sim" if r.get("is_return") else "Não",
+            "retorno_data": r.get("return_date").strftime("%d/%m/%Y") if r.get("return_date") else "",
         }
         for r in rows
     ]
+
+
+def atualizar_status_ticket(ticket_id, status):
+    if not _pg_enabled():
+        raise RuntimeError("Atualização de status do ticket disponível apenas no Postgres.")
+    status = (status or "").strip().lower()
+    if status not in {"paid", "pending", "cancelled", "draft"}:
+        raise ValueError("Status inválido para ticket.")
+    ticket = _resolve_ticket_row(ticket_id)
+    if not ticket:
+        raise ValueError("Ticket não encontrado.")
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "update public.tickets set status = %s where id = %s returning id",
+                (status, ticket["id"]),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    return str(row["id"]) if row else str(ticket["id"])
 
 
 def inserir_cliente(dados):
@@ -1147,8 +1290,8 @@ def inserir_cliente(dados):
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
-                insert into public.clients (name, cpf, mobile, phone, email, address, city, birth_date, notes, source)
-                values (%s,%s,%s,%s,%s,%s,%s,%s,%s,'manual')
+                insert into public.clients (name, cpf, mobile, phone, email, address, city, neighborhood, state, zip_code, birth_date, notes, source)
+                values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'manual')
                 returning id
                 """,
                 (
@@ -1159,6 +1302,9 @@ def inserir_cliente(dados):
                     dados.get("email"),
                     dados.get("endereco"),
                     dados.get("cidade"),
+                    dados.get("bairro"),
+                    dados.get("estado"),
+                    dados.get("cep") or dados.get("zip_code"),
                     dados.get("nascimento") or None,
                     dados.get("observacao"),
                 ),
@@ -1178,8 +1324,8 @@ def inserir_animal(dados):
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
-                insert into public.animals (client_id, name, species, breed, sex, birth_date, coat, chip, notes, source)
-                values (%s,%s,%s,%s,%s,%s,%s,%s,%s,'manual')
+                insert into public.animals (client_id, name, species, breed, sex, birth_date, coat, chip, castrado, notes, source)
+                values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'manual')
                 returning id
                 """,
                 (
@@ -1191,6 +1337,7 @@ def inserir_animal(dados):
                     dados.get("nascimento") or None,
                     dados.get("pelagem"),
                     dados.get("chip"),
+                    _parse_bool(dados.get("castrado")),
                     dados.get("observacao"),
                 ),
             )
@@ -1258,6 +1405,339 @@ def inserir_registro(dados):
                     (client["id"], animal["id"], dados.get("data") or None, dados.get("descricao"), dados.get("veterinario"), dados.get("observacao")),
                 )
         conn.commit()
+
+
+def _consulta_document_path(consulta_id):
+    return f"consultas/{consulta_id}/consulta.pdf"
+
+
+def _ensure_consulta_document(cur, consulta_row, consultation_id):
+    file_name = f"consulta-{consultation_id}.pdf"
+    storage_path = _consulta_document_path(consultation_id)
+    metadata = {
+        "type": "consulta_pdf",
+        "generated": True,
+        "consultation_id": str(consultation_id),
+    }
+    cur.execute(
+        """
+        select id
+          from public.documents
+         where consultation_id = %s
+         order by created_at desc
+         limit 1
+        """,
+        (consultation_id,),
+    )
+    existing = cur.fetchone()
+    if existing:
+        cur.execute(
+            """
+            update public.documents
+               set client_id = %s,
+                   animal_id = %s,
+                   file_name = %s,
+                   mime_type = %s,
+                   storage_path = %s,
+                   source_url = %s,
+                   caption = %s,
+                   metadata = %s,
+                   source = %s,
+                   updated_at = now()
+             where id = %s
+            """,
+            (
+                consulta_row.get("client_id"),
+                consulta_row.get("animal_id"),
+                file_name,
+                "application/pdf",
+                storage_path,
+                None,
+                "PDF da consulta",
+                Json(metadata, dumps=_json_dumps),
+                consulta_row.get("source") or "manual",
+                existing["id"],
+            ),
+        )
+        return str(existing["id"])
+
+    cur.execute(
+        """
+        insert into public.documents
+          (client_id, animal_id, consultation_id, file_name, mime_type, storage_path, source_url, caption, metadata, source)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        returning id
+        """,
+        (
+            consulta_row.get("client_id"),
+            consulta_row.get("animal_id"),
+            consultation_id,
+            file_name,
+            "application/pdf",
+            storage_path,
+            None,
+            "PDF da consulta",
+            Json(metadata, dumps=_json_dumps),
+            consulta_row.get("source") or "manual",
+        ),
+    )
+    row = cur.fetchone()
+    return str(row["id"]) if row else None
+
+
+def _consulta_payload_from_dados(dados, status=None, completed_at=None, completed_by=None):
+    payload = {
+        "consultation_date": dados.get("consultation_date") or dados.get("data_da_consulta") or dados.get("data") or "",
+        "is_return": bool(_parse_bool(dados.get("is_return") if "is_return" in dados else dados.get("is_retorno"))),
+        "return_date": dados.get("return_date") or dados.get("data_retorno") or "",
+        "status": status or dados.get("status") or "draft",
+        "chief_complaint": dados.get("chief_complaint") or dados.get("queixa_principal") or "",
+        "anamnesis": dados.get("anamnesis") or dados.get("anamnese") or "",
+        "digestive_system": dados.get("digestive_system") or dados.get("sistema_digestorio") or "",
+        "cardiorespiratory_system": dados.get("cardiorespiratory_system") or dados.get("sistema_cardiorrespiratorio") or "",
+        "genitourinary_system": dados.get("genitourinary_system") or dados.get("sistema_genito_urinario") or "",
+        "nervous_musculoskeletal_system": dados.get("nervous_musculoskeletal_system") or dados.get("sistema_nervoso_locomotor") or "",
+        "central_temperature": dados.get("central_temperature") or dados.get("temperatura_central") or "",
+        "peripheral_temperature": dados.get("peripheral_temperature") or dados.get("temperatura_periferica") or "",
+        "heart_rate": dados.get("heart_rate") or dados.get("freq_cardiaca") or "",
+        "respiratory_rate": dados.get("respiratory_rate") or dados.get("freq_respiratoria") or "",
+        "tpc": dados.get("tpc") or "",
+        "lymph_nodes": dados.get("lymph_nodes") or dados.get("linfonodos") or "",
+        "mucosa": dados.get("mucosa") or "",
+        "hydration": dados.get("hydration") or dados.get("hidratacao") or "",
+        "ectoparasites": dados.get("ectoparasites") or "",
+        "abdominal_palpation": dados.get("abdominal_palpation") or dados.get("palpacao_abdominal") or "",
+        "cardiac_auscultation": dados.get("cardiac_auscultation") or dados.get("ausculta_cardiaca") or "",
+        "pulmonary_auscultation": dados.get("pulmonary_auscultation") or dados.get("ausculta_pulmonar") or "",
+        "blood_pressure": dados.get("blood_pressure") or dados.get("pressao_arterial") or "",
+        "glycemia": dados.get("glycemia") or dados.get("glicemia") or "",
+        "delta": dados.get("delta") or "",
+        "weight": dados.get("weight") or dados.get("peso") or "",
+        "clinical_suspicion": dados.get("clinical_suspicion") or dados.get("suspeita_clinica") or "",
+        "requested_exams": dados.get("requested_exams") or dados.get("exames_solicitados") or "",
+        "diagnosis": dados.get("diagnosis") or dados.get("diagnostico") or "",
+        "outpatient_treatment": dados.get("outpatient_treatment") or dados.get("tratamento_ambulatorial") or "",
+        "integumentary_system": dados.get("integumentary_system") or dados.get("sistema_tegumentares_anexos") or "",
+        "previous_diseases_treatments": dados.get("previous_diseases_treatments") or dados.get("doencas_tratamentos_anteriores") or "",
+        "observations": dados.get("observations") or dados.get("observacoes") or "",
+        "veterinarian": dados.get("veterinarian") or dados.get("veterinario") or "",
+        "crmv": dados.get("crmv") or "",
+        "notes": dados.get("observations") or dados.get("observacoes") or dados.get("chief_complaint") or dados.get("queixa_principal") or "",
+        "completed_at": completed_at,
+        "completed_by": completed_by or "",
+        "source_payload": dict(dados),
+    }
+    return payload
+
+
+def salvar_consulta(dados):
+    if not _pg_enabled():
+        # fallback simples: grava como registro genérico e devolve id textual
+        inserir_registro({
+            "tipo": "consulta",
+            "id_cliente": dados.get("id_cliente"),
+            "id_animal": dados.get("id_animal"),
+            "data": dados.get("consultation_date") or dados.get("data_da_consulta") or dados.get("data") or "",
+            "descricao": dados.get("chief_complaint") or dados.get("queixa_principal") or "Consulta",
+            "veterinario": dados.get("veterinarian") or dados.get("veterinario") or "",
+            "observacao": dados.get("observations") or dados.get("observacoes") or "",
+            "arquivo": "",
+        })
+        return dados.get("id") or ""
+
+    client = _resolve_client_pg(dados.get("id_cliente"))
+    animal = _resolve_animal_pg(dados.get("id_animal"))
+    if not client:
+        raise ValueError("Cliente não encontrado para salvar consulta.")
+    if not animal and dados.get("id_animal"):
+        raise ValueError("Animal não encontrado para salvar consulta.")
+
+    consulta_id = dados.get("id")
+    consulta_id = str(consulta_id).replace("new_", "") if consulta_id else None
+    status = (dados.get("status") or "draft").lower()
+    if dados.get("acao") == "finalizar":
+        status = "done"
+    elif dados.get("acao") == "cancelar":
+        status = "cancelled"
+    completed_at = None
+    completed_by = dados.get("completed_by") or ""
+    if status in {"done", "cancelled"}:
+        from datetime import datetime
+        completed_at = dados.get("completed_at") or datetime.utcnow()
+
+    payload = _consulta_payload_from_dados(dados, status=status, completed_at=completed_at, completed_by=completed_by)
+    payload["source"] = dados.get("source") or "manual"
+    payload["client_id"] = client["id"]
+    payload["animal_id"] = animal["id"] if animal else None
+    payload["legacy_consultation_id"] = dados.get("legacy_consultation_id") or dados.get("id_legacy") or None
+
+    campos = (
+        "client_id", "animal_id", "consultation_date", "is_return", "return_date",
+        "start_time", "end_time", "duration_minutes", "veterinarian", "crmv",
+        "status", "chief_complaint", "anamnesis", "digestive_system", "cardiorespiratory_system",
+        "genitourinary_system", "nervous_musculoskeletal_system", "central_temperature",
+        "peripheral_temperature", "heart_rate", "respiratory_rate", "tpc", "lymph_nodes",
+        "mucosa", "hydration", "ectoparasites", "abdominal_palpation", "cardiac_auscultation",
+        "pulmonary_auscultation", "blood_pressure", "glycemia", "delta", "weight",
+        "clinical_suspicion", "requested_exams", "diagnosis", "outpatient_treatment",
+        "integumentary_system", "previous_diseases_treatments", "observations", "notes",
+        "completed_at", "completed_by", "source", "source_payload"
+    )
+
+    consultation_values = (
+        client["id"],
+        animal["id"] if animal else None,
+        _parse_date(dados.get("consultation_date") or dados.get("data_da_consulta") or dados.get("data")),
+        bool(_parse_bool(dados.get("is_return") if "is_return" in dados else dados.get("is_retorno"))),
+        _parse_date(dados.get("return_date") or dados.get("data_retorno")),
+        dados.get("start_time") or None,
+        dados.get("end_time") or None,
+        dados.get("duration_minutes") or None,
+        dados.get("veterinarian") or dados.get("veterinario") or "",
+        dados.get("crmv") or "",
+        status,
+        dados.get("chief_complaint") or dados.get("queixa_principal") or "",
+        dados.get("anamnesis") or dados.get("anamnese") or "",
+        dados.get("digestive_system") or dados.get("sistema_digestorio") or "",
+        dados.get("cardiorespiratory_system") or dados.get("sistema_cardiorrespiratorio") or "",
+        dados.get("genitourinary_system") or dados.get("sistema_genito_urinario") or "",
+        dados.get("nervous_musculoskeletal_system") or dados.get("sistema_nervoso_locomotor") or "",
+        dados.get("central_temperature") or dados.get("temperatura_central") or "",
+        dados.get("peripheral_temperature") or dados.get("temperatura_periferica") or "",
+        dados.get("heart_rate") or dados.get("freq_cardiaca") or "",
+        dados.get("respiratory_rate") or dados.get("freq_respiratoria") or "",
+        dados.get("tpc") or "",
+        dados.get("lymph_nodes") or dados.get("linfonodos") or "",
+        dados.get("mucosa") or "",
+        dados.get("hydration") or dados.get("hidratacao") or "",
+        dados.get("ectoparasites") or "",
+        dados.get("abdominal_palpation") or dados.get("palpacao_abdominal") or "",
+        dados.get("cardiac_auscultation") or dados.get("ausculta_cardiaca") or "",
+        dados.get("pulmonary_auscultation") or dados.get("ausculta_pulmonar") or "",
+        dados.get("blood_pressure") or dados.get("pressao_arterial") or "",
+        dados.get("glycemia") or dados.get("glicemia") or "",
+        dados.get("delta") or "",
+        dados.get("weight") or dados.get("peso") or "",
+        dados.get("clinical_suspicion") or dados.get("suspeita_clinica") or "",
+        dados.get("requested_exams") or dados.get("exames_solicitados") or "",
+        dados.get("diagnosis") or dados.get("diagnostico") or "",
+        dados.get("outpatient_treatment") or dados.get("tratamento_ambulatorial") or "",
+        dados.get("integumentary_system") or dados.get("sistema_tegumentares_anexos") or "",
+        dados.get("previous_diseases_treatments") or dados.get("doencas_tratamentos_anteriores") or "",
+        dados.get("observations") or dados.get("observacoes") or "",
+        dados.get("observations") or dados.get("observacoes") or dados.get("chief_complaint") or dados.get("queixa_principal") or "",
+        completed_at,
+        completed_by,
+        dados.get("source") or "manual",
+        Json(payload, dumps=_json_dumps),
+    )
+
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            if consulta_id:
+                placeholders = ", ".join([f"{campo} = %s" for campo in campos])
+                cur.execute(
+                    f"""
+                    update public.consultations
+                       set {placeholders},
+                           updated_at = now()
+                     where id::text = %s
+                 returning id
+                    """,
+                    consultation_values + (consulta_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    raise ValueError("Consulta não encontrada para atualização.")
+                consultation_id = row["id"]
+            else:
+                cur.execute(
+                    f"""
+                    insert into public.consultations ({", ".join(campos)})
+                    values ({", ".join(["%s"] * len(campos))})
+                 returning id
+                    """,
+                    consultation_values,
+                )
+                consultation_id = cur.fetchone()["id"]
+
+            _ensure_consulta_document(cur, {"client_id": client["id"], "animal_id": animal["id"] if animal else None, "source": dados.get("source") or "manual"}, consultation_id)
+        conn.commit()
+    return str(consultation_id)
+
+
+def get_consulta(consulta_id):
+    if not _pg_enabled():
+        return None
+    row = _resolve_consultation_row(consulta_id)
+    if not row:
+        return None
+    consulta = _map_consultation_row(row)
+    client = _map_client_row(_resolve_client_pg(row["client_id"]))
+    animal = _map_animal_row(_resolve_animal_pg(row["animal_id"])) if row.get("animal_id") else {}
+    consulta.update({
+        "cliente": client or {},
+        "animal": animal or {},
+        "nome_cliente": client.get("nome") if client else "",
+        "cpf": client.get("cpf") if client else "",
+        "celular": client.get("celular") if client else "",
+        "endereco": client.get("endereco") if client else "",
+        "cidade": client.get("cidade") if client else "",
+        "bairro": client.get("bairro") if client else "",
+        "estado": client.get("estado") if client else "",
+        "cep": client.get("cep") if client else "",
+        "nome_animal": animal.get("nome_animal") if animal else "",
+        "especie": animal.get("especie") if animal else "",
+        "raca": animal.get("raca") if animal else "",
+        "sexo": animal.get("sexo") if animal else "",
+        "pelagem": animal.get("pelagem") if animal else "",
+        "nascimento": animal.get("nascimento") if animal else "",
+        "castrado": animal.get("castrado_label") if animal else "",
+        "veterinario": row.get("veterinarian") or "",
+    })
+    return consulta
+
+
+def get_consultas_animal(id_cliente, id_animal):
+    if not _pg_enabled():
+        return _LEGACY_get_registros_animal(id_cliente, id_animal, "consultas")
+    client = _resolve_client_pg(id_cliente)
+    animal = _resolve_animal_pg(id_animal)
+    if not client:
+        return _LEGACY_get_registros_animal(id_cliente, id_animal, "consultas")
+    rows = _pg_fetchall(
+        """
+        select *
+          from public.consultations
+         where client_id = %s
+           and (%s::uuid is null or animal_id = %s::uuid)
+         order by consultation_date desc, created_at desc
+        """,
+        (client["id"], animal["id"] if animal else None, animal["id"] if animal else None),
+    )
+    consultas = []
+    for row in rows:
+        consulta = _map_consultation_row(row)
+        consultas.append({
+            "id": consulta["id"],
+            "data": consulta["data_da_consulta"],
+            "descricao": consulta["queixa_principal"] or consulta["diagnostico"] or "Consulta",
+            "veterinario": consulta["veterinario"],
+            "observacao": consulta["observacoes"],
+            "status": consulta["status"],
+            "retorno": "Sim" if consulta["is_retorno"] else "Não",
+            "retorno_data": consulta["data_retorno"],
+        })
+    return consultas
+
+
+def _consulta_pdf_context(consulta_id):
+    consulta = get_consulta(consulta_id)
+    if not consulta:
+        return None
+    client = consulta.get("cliente") or {}
+    animal = consulta.get("animal") or {}
+    return consulta, client, animal
 
 
 def get_servicos():
@@ -1418,13 +1898,19 @@ def get_tickets_cliente(id_cliente):
     )
     tickets = []
     for r in rows:
+        animal_row = _resolve_animal_pg(r["animal_id"]) if r.get("animal_id") else None
         tickets.append({
             "id": str(r["id"]),
             "data": r["ticket_date"].strftime("%d/%m/%Y") if r.get("ticket_date") else "",
             "veterinario": r.get("veterinarian") or "",
             "nome_cliente": client.get("name") or "",
-            "nome_animal": "",
+            "nome_animal": (animal_row.get("name") if animal_row else "") or "",
+            "animal": (animal_row.get("name") if animal_row else "") or "",
             "total_liquido": f'{float(r.get("net_total") or 0):.2f}'.replace(".", ","),
+            "status": r.get("status") or "",
+            "pago": (r.get("status") or "").lower() == "paid",
+            "numero": str(r["id"]),
+            "origem": "postgres",
         })
     return [], tickets
 
@@ -1598,6 +2084,7 @@ def ultimos_tickets(limite=15):
     )
     return [
         {
+            "id": str(r["id"]),
             "data": r["ticket_date"].strftime("%d/%m/%Y") if r.get("ticket_date") else "",
             "valor": float(r.get("net_total") or 0),
             "pago": (r.get("status") or "").lower() == "paid",

@@ -224,12 +224,15 @@
 
   <div class="menu-label">Atendimento</div>
   <ul class="nav flex-column">
-    <li><a class="nav-link {% if request.endpoint=='atendimento' and request.args.get('acao')!='receita' %}active{% endif %}"
+    <li><a class="nav-link {% if request.endpoint=='atendimento' and request.args.get('acao') not in ('receita', 'consulta') %}active{% endif %}"
            href="{{ url_for('atendimento', acao='ticket') }}">
       <i class="bi bi-receipt"></i> Emitir Ticket</a></li>
     <li><a class="nav-link {% if request.endpoint=='atendimento' and request.args.get('acao')=='receita' %}active{% endif %}"
            href="{{ url_for('atendimento', acao='receita') }}">
       <i class="bi bi-capsule"></i> Emitir Receita</a></li>
+    <li><a class="nav-link {% if request.endpoint=='atendimento' and request.args.get('acao')=='consulta' %}active{% endif %}"
+           href="{{ url_for('atendimento', acao='consulta') }}">
+      <i class="bi bi-clipboard2-pulse"></i> Emitir Consulta</a></li>
   </ul>
 
   <div class="menu-label">Cadastros</div>

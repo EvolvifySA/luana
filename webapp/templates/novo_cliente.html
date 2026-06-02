@@ -47,11 +47,19 @@
           <label class="form-label">Endereço</label>
           <div class="input-ico"><i class="bi bi-geo-alt"></i><input type="text" name="endereco" class="form-control" value="{{ form.get('endereco','') }}" placeholder="Rua, número, bairro"></div>
         </div>
-        <div class="col-md-7">
+        <div class="col-md-6">
+          <label class="form-label">Bairro</label>
+          <input type="text" name="bairro" class="form-control" value="{{ form.get('bairro','') }}" placeholder="Bancários">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">CEP</label>
+          <input type="text" name="cep" class="form-control" value="{{ form.get('cep','') }}" placeholder="00000-000">
+        </div>
+        <div class="col-md-4">
           <label class="form-label">Cidade</label>
           <input type="text" name="cidade" class="form-control" value="{{ form.get('cidade','') }}" placeholder="João Pessoa">
         </div>
-        <div class="col-md-5">
+        <div class="col-md-4">
           <label class="form-label">Estado</label>
           <select name="estado" class="form-select">
             {% for uf in ['PB','PE','RN','CE','AL','SE','BA','SP','RJ','MG','Outro'] %}

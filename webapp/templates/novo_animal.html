@@ -40,6 +40,14 @@
         <div class="col-md-6"><label class="form-label">Pelagem / Cor</label><input type="text" name="pelagem" class="form-control" value="{{ form.get('pelagem','') }}"></div>
         <div class="col-md-6"><label class="form-label">Data de nascimento</label><input type="date" name="nascimento" class="form-control" value="{{ form.get('nascimento','') }}"></div>
         <div class="col-md-6"><label class="form-label">Nº do chip</label><input type="text" name="chip" class="form-control" value="{{ form.get('chip','') }}"></div>
+        <div class="col-md-6">
+          <label class="form-label">Castrado</label>
+          <select name="castrado" class="form-select">
+            <option value="">Não informado</option>
+            <option value="sim" {% if form.get('castrado') == 'sim' %}selected{% endif %}>Sim</option>
+            <option value="nao" {% if form.get('castrado') == 'nao' %}selected{% endif %}>Não</option>
+          </select>
+        </div>
         <div class="col-12"><label class="form-label">Observações</label><textarea name="observacao" class="form-control" rows="2">{{ form.get('observacao','') }}</textarea></div>
       </div>
 
