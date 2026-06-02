@@ -824,22 +824,25 @@ def _pg_conn():
         query = parse_qs(parsed.query)
         sslmode = (query.get("sslmode") or ["require"])[0]
 
-        ipv4 = None
-        for family, _, _, _, sockaddr in socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM):
-            if family == socket.AF_INET:
-                ipv4 = sockaddr[0]
-                break
+        try:
+            ipv4 = None
+            for family, _, _, _, sockaddr in socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM):
+                if family == socket.AF_INET:
+                    ipv4 = sockaddr[0]
+                    break
 
-        if ipv4:
-            return psycopg2.connect(
-                dbname=database,
-                user=user,
-                password=password,
-                host=host,
-                hostaddr=ipv4,
-                port=port,
-                sslmode=sslmode,
-            )
+            if ipv4:
+                return psycopg2.connect(
+                    dbname=database,
+                    user=user,
+                    password=password,
+                    host=host,
+                    hostaddr=ipv4,
+                    port=port,
+                    sslmode=sslmode,
+                )
+        except socket.gaierror:
+            pass
 
     return psycopg2.connect(dsn)
 
