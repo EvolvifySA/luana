@@ -261,14 +261,15 @@ def register_routes(app):
                 "total_descontos": f"{total_desc:.2f}".replace(".", ","),
                 "total_liquido":  f"{liquido:.2f}".replace(".", ","),
             }
-            db.salvar_ticket(ticket)
+            saved_ticket_id = db.salvar_ticket(ticket)
+            ticket["id"] = saved_ticket_id or ticket["id"]
             return render_template("ticket.html", **pdf_context(ticket=ticket, clinica=config.CLINICA))
 
         return render_template("novo_ticket.html", cliente=cliente_dados, animal=animal,
                                id_cliente=id_cliente, id_animal=id_animal,
                                servicos=db.get_servicos())
 
-    @app.route("/ticket/<int:ticket_id>")
+    @app.route("/ticket/<ticket_id>")
     def ver_ticket(ticket_id):
         ticket = db.get_ticket(ticket_id)
         if not ticket:
@@ -276,7 +277,7 @@ def register_routes(app):
             return redirect(url_for("dashboard"))
         return render_template("ticket.html", **pdf_context(ticket=ticket, clinica=config.CLINICA))
 
-    @app.route("/ticket/<int:ticket_id>/pdf")
+    @app.route("/ticket/<ticket_id>/pdf")
     def ticket_pdf(ticket_id):
         ticket = db.get_ticket(ticket_id)
         if not ticket:
@@ -308,12 +309,13 @@ def register_routes(app):
                 "observacao":  request.form.get("observacao", "").strip(),
             }
             rid = db.salvar_receita(dados)
+            dados["id"] = rid
             flash("Receita criada! Abrindo para impressão...", "success")
             return redirect(url_for("ver_receita", receita_id=rid))
         return render_template("nova_receita.html", cliente=cliente_dados,
                                animal=animal, id_cliente=id_cliente, id_animal=id_animal)
 
-    @app.route("/receita/<int:receita_id>")
+    @app.route("/receita/<receita_id>")
     def ver_receita(receita_id):
         receita = db.get_receita(receita_id)
         if not receita:
@@ -334,7 +336,7 @@ def register_routes(app):
             ),
         )
 
-    @app.route("/receita/<int:receita_id>/pdf")
+    @app.route("/receita/<receita_id>/pdf")
     def receita_pdf(receita_id):
         receita = db.get_receita(receita_id)
         if not receita:
