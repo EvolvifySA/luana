@@ -795,6 +795,8 @@ _LEGACY_ultimos_tickets = ultimos_tickets
 
 try:
     import json
+    import socket
+    from urllib.parse import urlsplit, parse_qs, unquote
     import psycopg2
     from psycopg2.extras import RealDictCursor, Json
 except Exception:  # pragma: no cover - fallback when psycopg2 is unavailable
@@ -808,7 +810,38 @@ def _pg_enabled():
 
 
 def _pg_conn():
-    return psycopg2.connect(getattr(config, "DATABASE_URL"))
+    dsn = getattr(config, "DATABASE_URL", "").strip()
+    if not dsn:
+        raise RuntimeError("DATABASE_URL não configurado.")
+
+    parsed = urlsplit(dsn)
+    if parsed.hostname:
+        host = parsed.hostname
+        port = parsed.port or 5432
+        user = unquote(parsed.username or "")
+        password = unquote(parsed.password or "")
+        database = parsed.path.lstrip("/") or "postgres"
+        query = parse_qs(parsed.query)
+        sslmode = (query.get("sslmode") or ["require"])[0]
+
+        ipv4 = None
+        for family, _, _, _, sockaddr in socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM):
+            if family == socket.AF_INET:
+                ipv4 = sockaddr[0]
+                break
+
+        if ipv4:
+            return psycopg2.connect(
+                dbname=database,
+                user=user,
+                password=password,
+                host=host,
+                hostaddr=ipv4,
+                port=port,
+                sslmode=sslmode,
+            )
+
+    return psycopg2.connect(dsn)
 
 
 def _pg_fetchall(sql, params=()):
