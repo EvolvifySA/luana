@@ -4,7 +4,18 @@
       "WebSearch",
       "Bash(python -c ' *)",
       "Bash(python -c \"import offline_db; import ast; ast.parse\\(open\\('offline_app.py',encoding='utf-8'\\).read\\(\\)\\); print\\('offline_db OK'\\); print\\('offline_app sintaxe OK'\\)\")",
-      "Bash(python -c \"print\\(sum\\(1 for _ in open\\('offline_db.py',encoding='utf-8'\\)\\)\\)\")"
+      "Bash(python -c \"print\\(sum\\(1 for _ in open\\('offline_db.py',encoding='utf-8'\\)\\)\\)\")",
+      "Bash(mkdir -p webapp scraper)",
+      "Bash(git mv *)",
+      "Bash(mv offline_db.py webapp/db.py)",
+      "Bash(mv offline_templates webapp/templates)",
+      "Bash(mv static *)",
+      "Bash(rm -rf templates app.py database.py __pycache__)",
+      "Bash(mv offline_novos.db evolvify.db)",
+      "Bash(rm -f nuvemvet.db offline_app.py)",
+      "Bash(pip install *)",
+      "Bash(rm -f scraper.py baixar_pdfs.py puxar_animais_detalhes.py puxar_cadastro_clientes.py puxar_secoes_pendentes.py puxar_tickets.py puxar_vacinas.py)",
+      "Bash(cd \"c:\\\\Users\\\\leona\\\\Desktop\\\\luana\" && rm -rf __pycache__ scraper/__pycache__ webapp/__pycache__ 2>/dev/null; echo \"=== ESTRUTURA FINAL ===\" && find . -type f -not -path './dados_exportados/*' -not -path './.git/*' -not -path '*/__pycache__/*' -not -name '*.db' | sort && echo \"\" && echo \"=== git status ===\" && git status --short | head -20)"
     ]
   }
 }

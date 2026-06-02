@@ -22,18 +22,20 @@ import re
 import logging
 from functools import lru_cache
 
+import config
+
 # ─── LOG ──────────────────────────────────────────────────────────────────────
 
 logging.basicConfig(
     level=logging.INFO,
-    format="[OFFLINE-DB] %(message)s"
+    format="[EVOLVIFY-DB] %(message)s"
 )
-log = logging.getLogger("offline_db")
+log = logging.getLogger("evolvify_db")
 
 # ─── CONFIGURAÇÃO ─────────────────────────────────────────────────────────────
 
-OUTPUT_DIR = "dados_exportados"
-NOVOS_DB   = "offline_novos.db"
+OUTPUT_DIR = config.OUTPUT_DIR
+NOVOS_DB   = "evolvify.db"
 
 # Mapeamento confirmado por análise do clientes_completo.csv
 # O parser HTML deslocou as colunas: o ID ficou vazio, e tudo avançou uma posição

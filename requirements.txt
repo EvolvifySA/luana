@@ -1,4 +1,11 @@
+# Aplicação web (Evolvify)
+flask
+python-dotenv
+
+# Scrapers (extração do NuvemVet)
 requests
 beautifulsoup4
 lxml
-flask
+
+# Senhas (hash) — vem com Flask, mas explicitado
+werkzeug

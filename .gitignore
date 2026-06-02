@@ -1,0 +1,34 @@
+# ─── Credenciais e ambiente ───────────────────────────────
+.env
+config.local.py
+
+# ─── Dados sensíveis (LGPD) — NUNCA versionar ─────────────
+dados_exportados/
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# ─── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+ENV/
+
+# ─── Ferramentas / IDE ────────────────────────────────────
+.vscode/
+.idea/
+.claude/
+*.log
+
+# ─── Sistema operacional ──────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Novo Registro{% endblock %}
+{% block topbar_title %}Adicionar Registro{% endblock %}
+{% block topbar_sub %}{{ cliente.nome if cliente else '' }}{% endblock %}
+
+{% block content %}
+<form method="post" enctype="multipart/form-data" style="max-width:680px;margin:0 auto">
+  <div class="card">
+    <div class="card-header"><i class="bi bi-clipboard2-plus me-2 text-azul"></i>Novo Registro{% if cliente %} <span class="text-muted fw-normal">— {{ cliente.nome }}</span>{% endif %}</div>
+    <div class="card-body p-4">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Tipo de registro</label>
+          <select name="tipo" class="form-select">
+            {% for key, label in tipos %}
+            <option value="{{ key.rstrip('s') }}" {% if key.rstrip('s') == tipo %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Data</label>
+          <input type="date" name="data" class="form-control" id="dataReg">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Descrição / Nome</label>
+          <input type="text" name="descricao" class="form-control" placeholder="Ex.: Vacina V8, Consulta de rotina...">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Veterinário responsável</label>
+          <input type="text" name="veterinario" class="form-control" value="Luana Feitosa">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Observações / Resultado</label>
+          <textarea name="observacao" class="form-control" rows="4" placeholder="Detalhes, dosagens, resultado do exame..."></textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Anexar arquivo (PDF, imagem)</label>
+          <input type="file" name="arquivo" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+          <div class="form-text">Opcional — laudos de exame, por exemplo.</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer bg-white d-flex justify-content-end gap-2 py-3" style="border-top:1px solid var(--line);border-radius:0 0 16px 16px">
+      <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=id_animal) }}" class="btn btn-light-soft">Cancelar</a>
+      <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>Salvar</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>document.getElementById('dataReg').valueAsDate = new Date();</script>
+{% endblock %}
