@@ -1,11 +1,20 @@
-# Aplicação web (Evolvify)
+# Aplicacao web (Evolvify)
 flask
 python-dotenv
 
-# Scrapers (extração do NuvemVet)
+# Scrapers (extracao do NuvemVet)
 requests
 beautifulsoup4
 lxml
 
-# Senhas (hash) — vem com Flask, mas explicitado
+# Postgres/Supabase
+psycopg2-binary
+
+# PDF real via navegador headless
+playwright==1.60.0
+
+# Servidor WSGI para producao
+gunicorn
+
+# Senhas (hash) - vem com Flask, mas explicitado
 werkzeug
