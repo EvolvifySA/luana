@@ -87,8 +87,8 @@
                   <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=aid, secao=sk) }}"
                      class="btn btn-xs {% if sk == secao_ativa and aid == id_animal_ativo %}btn-primary{% else %}btn-light-soft{% endif %}">{{ sl }}</a>
                   {% endfor %}
-                  <a href="{{ url_for('nova_consulta', id_cliente=id_cliente, id_animal=aid) }}" class="btn btn-xs btn-outline-success"><i class="bi bi-clipboard2-pulse"></i> Consulta</a>
-                  <a href="{{ url_for('novo_ticket', id_cliente=id_cliente, id_animal=aid) }}" class="btn btn-xs btn-outline-primary"><i class="bi bi-receipt"></i> Ticket</a>
+                  <a href="{{ url_for('nova_consulta', id_cliente=id_cliente, id_animal=aid) }}" class="btn btn-xs btn-outline-success"><i class="bi bi-clipboard2-pulse"></i> Nova Consulta</a>
+                  <a href="{{ url_for('novo_ticket', id_cliente=id_cliente, id_animal=aid) }}" class="btn btn-xs btn-outline-primary"><i class="bi bi-receipt"></i> Novo Ticket</a>
                 </div>
               </div>
             </div>
