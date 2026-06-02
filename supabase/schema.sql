@@ -31,9 +31,15 @@ create table if not exists public.users (
   updated_at timestamptz not null default now()
 );
 
-create trigger trg_users_updated_at
-before update on public.users
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_users_updated_at') then
+    create trigger trg_users_updated_at
+    before update on public.users
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_users_username_lower on public.users (lower(username));
 
@@ -59,9 +65,15 @@ create table if not exists public.clients (
   updated_at timestamptz not null default now()
 );
 
-create trigger trg_clients_updated_at
-before update on public.clients
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_clients_updated_at') then
+    create trigger trg_clients_updated_at
+    before update on public.clients
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_clients_name_lower on public.clients (lower(name));
 create index if not exists idx_clients_legacy_client_id on public.clients (legacy_client_id);
@@ -91,9 +103,15 @@ create table if not exists public.animals (
   unique (client_id, legacy_animal_id)
 );
 
-create trigger trg_animals_updated_at
-before update on public.animals
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_animals_updated_at') then
+    create trigger trg_animals_updated_at
+    before update on public.animals
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_animals_client_id on public.animals (client_id);
 create index if not exists idx_animals_legacy_animal_id on public.animals (legacy_animal_id);
@@ -117,9 +135,15 @@ create table if not exists public.services (
   unique (name, service_type)
 );
 
-create trigger trg_services_updated_at
-before update on public.services
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_services_updated_at') then
+    create trigger trg_services_updated_at
+    before update on public.services
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_services_name_lower on public.services (lower(name));
 create index if not exists idx_services_active on public.services (active);
@@ -149,9 +173,15 @@ create table if not exists public.tickets (
   updated_at timestamptz not null default now()
 );
 
-create trigger trg_tickets_updated_at
-before update on public.tickets
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_tickets_updated_at') then
+    create trigger trg_tickets_updated_at
+    before update on public.tickets
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_tickets_client_id on public.tickets (client_id);
 create index if not exists idx_tickets_animal_id on public.tickets (animal_id);
@@ -196,9 +226,15 @@ create table if not exists public.prescriptions (
   updated_at timestamptz not null default now()
 );
 
-create trigger trg_prescriptions_updated_at
-before update on public.prescriptions
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_prescriptions_updated_at') then
+    create trigger trg_prescriptions_updated_at
+    before update on public.prescriptions
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_prescriptions_client_id on public.prescriptions (client_id);
 create index if not exists idx_prescriptions_animal_id on public.prescriptions (animal_id);
@@ -245,9 +281,15 @@ create table if not exists public.appointments (
   updated_at timestamptz not null default now()
 );
 
-create trigger trg_appointments_updated_at
-before update on public.appointments
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_appointments_updated_at') then
+    create trigger trg_appointments_updated_at
+    before update on public.appointments
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_appointments_client_id on public.appointments (client_id);
 create index if not exists idx_appointments_animal_id on public.appointments (animal_id);
@@ -274,9 +316,15 @@ create table if not exists public.consultations (
   updated_at timestamptz not null default now()
 );
 
-create trigger trg_consultations_updated_at
-before update on public.consultations
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_consultations_updated_at') then
+    create trigger trg_consultations_updated_at
+    before update on public.consultations
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_consultations_client_id on public.consultations (client_id);
 create index if not exists idx_consultations_animal_id on public.consultations (animal_id);
@@ -305,9 +353,15 @@ create table if not exists public.vaccinations (
   updated_at timestamptz not null default now()
 );
 
-create trigger trg_vaccinations_updated_at
-before update on public.vaccinations
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_vaccinations_updated_at') then
+    create trigger trg_vaccinations_updated_at
+    before update on public.vaccinations
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_vaccinations_client_id on public.vaccinations (client_id);
 create index if not exists idx_vaccinations_animal_id on public.vaccinations (animal_id);
@@ -335,9 +389,15 @@ create table if not exists public.vaccine_returns (
   updated_at timestamptz not null default now()
 );
 
-create trigger trg_vaccine_returns_updated_at
-before update on public.vaccine_returns
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_vaccine_returns_updated_at') then
+    create trigger trg_vaccine_returns_updated_at
+    before update on public.vaccine_returns
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_vaccine_returns_client_id on public.vaccine_returns (client_id);
 create index if not exists idx_vaccine_returns_animal_id on public.vaccine_returns (animal_id);
@@ -369,9 +429,15 @@ create table if not exists public.exams (
   updated_at timestamptz not null default now()
 );
 
-create trigger trg_exams_updated_at
-before update on public.exams
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_exams_updated_at') then
+    create trigger trg_exams_updated_at
+    before update on public.exams
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_exams_client_id on public.exams (client_id);
 create index if not exists idx_exams_animal_id on public.exams (animal_id);
@@ -396,9 +462,15 @@ create table if not exists public.weights (
   updated_at timestamptz not null default now()
 );
 
-create trigger trg_weights_updated_at
-before update on public.weights
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_weights_updated_at') then
+    create trigger trg_weights_updated_at
+    before update on public.weights
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_weights_client_id on public.weights (client_id);
 create index if not exists idx_weights_animal_id on public.weights (animal_id);
@@ -422,9 +494,15 @@ create table if not exists public.surgeries (
   updated_at timestamptz not null default now()
 );
 
-create trigger trg_surgeries_updated_at
-before update on public.surgeries
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_surgeries_updated_at') then
+    create trigger trg_surgeries_updated_at
+    before update on public.surgeries
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_surgeries_client_id on public.surgeries (client_id);
 create index if not exists idx_surgeries_animal_id on public.surgeries (animal_id);
@@ -448,9 +526,15 @@ create table if not exists public.notes (
   updated_at timestamptz not null default now()
 );
 
-create trigger trg_notes_updated_at
-before update on public.notes
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_notes_updated_at') then
+    create trigger trg_notes_updated_at
+    before update on public.notes
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_notes_client_id on public.notes (client_id);
 create index if not exists idx_notes_animal_id on public.notes (animal_id);
@@ -488,9 +572,15 @@ create table if not exists public.documents (
   )
 );
 
-create trigger trg_documents_updated_at
-before update on public.documents
-for each row execute function public.set_updated_at();
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'trg_documents_updated_at') then
+    create trigger trg_documents_updated_at
+    before update on public.documents
+    for each row execute function public.set_updated_at();
+  end if;
+end
+$$;
 
 create index if not exists idx_documents_client_id on public.documents (client_id);
 create index if not exists idx_documents_animal_id on public.documents (animal_id);

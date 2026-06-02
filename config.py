@@ -43,6 +43,10 @@ LIMIT = int(_get("SCRAPER_LIMIT", "500"))
 # ─── Web app (Evolvify) ───────────────────────────────────────
 SECRET_KEY = _get("SECRET_KEY", "dev-secret-trocar")
 FLASK_PORT = int(_get("FLASK_PORT", "5001"))
+DATABASE_URL = _get("DATABASE_URL", "")
+SUPABASE_URL = _get("SUPABASE_URL", "")
+SUPABASE_SERVICE_ROLE_KEY = _get("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_STORAGE_BUCKET = _get("SUPABASE_STORAGE_BUCKET", "")
 
 APP_NOME  = "Sistema Vet"
 APP_MARCA = "Evolvify"

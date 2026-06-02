@@ -763,3 +763,810 @@ def ultimos_tickets(limite=15):
 
     tickets.sort(key=chave_data, reverse=True)
     return tickets[:limite]
+
+
+# =============================================================================
+# Postgres / Supabase
+# =============================================================================
+
+_LEGACY_garantir_usuario_padrao = garantir_usuario_padrao
+_LEGACY_verificar_login = verificar_login
+_LEGACY_trocar_senha = trocar_senha
+_LEGACY_total_clientes = total_clientes
+_LEGACY_total_animais = total_animais
+_LEGACY_total_registros = total_registros
+_LEGACY_buscar_clientes = buscar_clientes
+_LEGACY_get_cliente = get_cliente
+_LEGACY_get_animais_cliente = get_animais_cliente
+_LEGACY_get_registros_animal = get_registros_animal
+_LEGACY_inserir_cliente = inserir_cliente
+_LEGACY_inserir_animal = inserir_animal
+_LEGACY_inserir_registro = inserir_registro
+_LEGACY_get_servicos = get_servicos
+_LEGACY_proximo_id_ticket = proximo_id_ticket
+_LEGACY_salvar_ticket = salvar_ticket
+_LEGACY_get_ticket = get_ticket
+_LEGACY_get_tickets_cliente = get_tickets_cliente
+_LEGACY_salvar_receita = salvar_receita
+_LEGACY_get_receita = get_receita
+_LEGACY_get_receitas_animal = get_receitas_animal
+_LEGACY_resumo_financeiro = resumo_financeiro
+_LEGACY_ultimos_tickets = ultimos_tickets
+
+try:
+    import json
+    import psycopg2
+    from psycopg2.extras import RealDictCursor, Json
+except Exception:  # pragma: no cover - fallback when psycopg2 is unavailable
+    psycopg2 = None
+    RealDictCursor = None
+    Json = None
+
+
+def _pg_enabled():
+    return bool(getattr(config, "DATABASE_URL", "").strip()) and psycopg2 is not None
+
+
+def _pg_conn():
+    return psycopg2.connect(getattr(config, "DATABASE_URL"))
+
+
+def _pg_fetchall(sql, params=()):
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+
+def _pg_fetchone(sql, params=()):
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(sql, params)
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+
+def _map_client_row(row):
+    if not row:
+        return None
+    return {
+        "id_cliente": str(row["id"]),
+        "nome": row.get("name") or "",
+        "cpf": row.get("cpf") or "",
+        "celular": row.get("mobile") or "",
+        "telefone": row.get("phone") or "",
+        "email": row.get("email") or "",
+        "endereco": row.get("address") or "",
+        "cidade": row.get("city") or "",
+        "nascimento": row.get("birth_date").isoformat() if row.get("birth_date") else "",
+        "observacao": row.get("notes") or "",
+        "source": row.get("source") or "",
+        "legacy_client_id": row.get("legacy_client_id") or "",
+    }
+
+
+def _map_animal_row(row):
+    if not row:
+        return None
+    return {
+        "id_animal": str(row["id"]),
+        "id_cliente": str(row["client_id"]),
+        "nome": row.get("name") or "",
+        "nome_animal": row.get("name") or "",
+        "especie": row.get("species") or "",
+        "raca": row.get("breed") or "",
+        "sexo": row.get("sex") or "",
+        "nascimento": row.get("birth_date").isoformat() if row.get("birth_date") else "",
+        "pelagem": row.get("coat") or "",
+        "chip": row.get("chip") or "",
+        "observacao": row.get("notes") or "",
+        "source": row.get("source") or "",
+        "legacy_animal_id": row.get("legacy_animal_id") or "",
+    }
+
+
+def _resolve_client_pg(id_cliente):
+    clean = str(id_cliente).replace("new_", "")
+    row = _pg_fetchone(
+        """
+        select *
+          from public.clients
+         where id::text = %s
+            or legacy_client_id = %s
+            or name = %s
+         limit 1
+        """,
+        (clean, clean, clean),
+    )
+    return row
+
+
+def _resolve_animal_pg(id_animal):
+    clean = str(id_animal).replace("new_", "")
+    row = _pg_fetchone(
+        """
+        select *
+          from public.animals
+         where id::text = %s
+            or legacy_animal_id = %s
+         limit 1
+        """,
+        (clean, clean),
+    )
+    return row
+
+
+def _resolve_ticket_row(ticket_id):
+    return _pg_fetchone("select * from public.tickets where id::text = %s limit 1", (str(ticket_id),))
+
+
+def _resolve_receita_row(receita_id):
+    return _pg_fetchone("select * from public.prescriptions where id::text = %s limit 1", (str(receita_id),))
+
+
+def garantir_usuario_padrao():
+    if not _pg_enabled():
+        return _LEGACY_garantir_usuario_padrao()
+    from werkzeug.security import generate_password_hash
+
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("select count(*) from public.users")
+            total = cur.fetchone()[0]
+            if total == 0:
+                cur.execute(
+                    """
+                    insert into public.users (username, password_hash, full_name, role, active)
+                    values (%s, %s, %s, %s, true)
+                    """,
+                    ("luana", generate_password_hash("evolvify2026"), "Luana Feitosa", "admin"),
+                )
+                conn.commit()
+                return ("luana", "evolvify2026")
+    return None
+
+
+def verificar_login(username, senha):
+    if not _pg_enabled():
+        return _LEGACY_verificar_login(username, senha)
+    from werkzeug.security import check_password_hash
+
+    row = _pg_fetchone(
+        "select id, username, full_name, password_hash from public.users where lower(username) = lower(%s) limit 1",
+        (username.strip(),),
+    )
+    if row and check_password_hash(row["password_hash"], senha):
+        return {"id": row["id"], "username": row["username"], "nome": row.get("full_name") or row["username"]}
+    return None
+
+
+def trocar_senha(user_id, senha_nova):
+    if not _pg_enabled():
+        return _LEGACY_trocar_senha(user_id, senha_nova)
+    from werkzeug.security import generate_password_hash
+
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "update public.users set password_hash = %s, updated_at = now() where id::text = %s",
+                (generate_password_hash(senha_nova), str(user_id)),
+            )
+        conn.commit()
+
+
+def total_clientes():
+    if not _pg_enabled():
+        return _LEGACY_total_clientes()
+    row = _pg_fetchone("select count(*) as n from public.clients")
+    return int(row["n"]) if row else 0
+
+
+def total_animais():
+    if not _pg_enabled():
+        return _LEGACY_total_animais()
+    row = _pg_fetchone("select count(*) as n from public.animals")
+    return int(row["n"]) if row else 0
+
+
+def total_registros(secao):
+    if not _pg_enabled():
+        return _LEGACY_total_registros(secao)
+    table_map = {
+        "consultas": "consultations",
+        "vacinas": "vaccinations",
+        "receituario": "prescriptions",
+        "exames": "exams",
+        "cirurgias": "surgeries",
+        "pesagens": "weights",
+        "anotacoes": "notes",
+    }
+    table = table_map.get(secao)
+    if not table:
+        return 0
+    row = _pg_fetchone(f"select count(*) as n from public.{table}")
+    return int(row["n"]) if row else 0
+
+
+def buscar_clientes(q="", limite=50, offset=0):
+    if not _pg_enabled():
+        return _LEGACY_buscar_clientes(q=q, limite=limite, offset=offset)
+    params = [limite, offset]
+    where = ""
+    if q:
+        where = "where lower(coalesce(name, '')) like lower(%s)"
+        params = [f"%{q}%", limite, offset]
+    rows = _pg_fetchall(
+        f"""
+        select *
+          from public.clients
+          {where}
+         order by lower(name)
+         limit %s offset %s
+        """,
+        tuple(params),
+    )
+    return [_map_client_row(r) for r in rows]
+
+
+def get_cliente(id_cliente):
+    if not _pg_enabled():
+        return _LEGACY_get_cliente(id_cliente)
+    row = _resolve_client_pg(id_cliente)
+    if row:
+        return _map_client_row(row)
+    return _LEGACY_get_cliente(id_cliente)
+
+
+def get_animais_cliente(id_cliente):
+    if not _pg_enabled():
+        return _LEGACY_get_animais_cliente(id_cliente)
+    client = _resolve_client_pg(id_cliente)
+    if not client:
+        return _LEGACY_get_animais_cliente(id_cliente)
+    rows = _pg_fetchall("select * from public.animals where client_id = %s order by lower(name)", (client["id"],))
+    animais = [_map_animal_row(r) for r in rows]
+    if animais:
+        return animais
+    return _LEGACY_get_animais_cliente(id_cliente)
+
+
+def get_registros_animal(id_cliente, id_animal, secao):
+    if not _pg_enabled():
+        return _LEGACY_get_registros_animal(id_cliente, id_animal, secao)
+    client = _resolve_client_pg(id_cliente)
+    animal = _resolve_animal_pg(id_animal)
+    if not client or not animal:
+        return _LEGACY_get_registros_animal(id_cliente, id_animal, secao)
+
+    if secao == "consultas":
+        rows = _pg_fetchall(
+            """select consultation_date as data, notes as descricao, veterinarian, source_payload
+                 from public.consultations
+                where client_id = %s and animal_id = %s
+                order by consultation_date desc""",
+            (client["id"], animal["id"]),
+        )
+    elif secao == "vacinas":
+        rows = _pg_fetchall(
+            """select applied_at as data, vaccine_name as descricao, veterinarian, notes, source_payload
+                 from public.vaccinations
+                where client_id = %s and animal_id = %s
+                order by applied_at desc""",
+            (client["id"], animal["id"]),
+        )
+    elif secao == "exames":
+        rows = _pg_fetchall(
+            """select exam_date as data, exam_type as descricao, requester as veterinarian, notes, source_payload
+                 from public.exams
+                where client_id = %s and animal_id = %s
+                order by exam_date desc""",
+            (client["id"], animal["id"]),
+        )
+    elif secao == "cirurgias":
+        rows = _pg_fetchall(
+            """select surgery_date as data, title as descricao, veterinarian, notes, source_payload
+                 from public.surgeries
+                where client_id = %s and animal_id = %s
+                order by surgery_date desc""",
+            (client["id"], animal["id"]),
+        )
+    elif secao == "pesagens":
+        rows = _pg_fetchall(
+            """select weighed_at as data, weight::text as descricao, recorded_by as veterinarian, notes, source_payload
+                 from public.weights
+                where client_id = %s and animal_id = %s
+                order by weighed_at desc""",
+            (client["id"], animal["id"]),
+        )
+    else:
+        rows = _pg_fetchall(
+            """select note_date as data, title as descricao, veterinarian, body as notes, source_payload
+                 from public.notes
+                where client_id = %s and animal_id = %s
+                order by note_date desc""",
+            (client["id"], animal["id"]),
+        )
+
+    if not rows:
+        return _LEGACY_get_registros_animal(id_cliente, id_animal, secao)
+    return [
+        {
+            "data": (r.get("data").strftime("%d/%m/%Y") if r.get("data") else ""),
+            "descricao": r.get("descricao") or "",
+            "veterinario": r.get("veterinarian") or "",
+            "observacao": r.get("notes") or "",
+        }
+        for r in rows
+    ]
+
+
+def inserir_cliente(dados):
+    if not _pg_enabled():
+        return _LEGACY_inserir_cliente(dados)
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                insert into public.clients (name, cpf, mobile, phone, email, address, city, birth_date, notes, source)
+                values (%s,%s,%s,%s,%s,%s,%s,%s,%s,'manual')
+                returning id
+                """,
+                (
+                    dados.get("nome"),
+                    dados.get("cpf"),
+                    dados.get("celular"),
+                    dados.get("telefone"),
+                    dados.get("email"),
+                    dados.get("endereco"),
+                    dados.get("cidade"),
+                    dados.get("nascimento") or None,
+                    dados.get("observacao"),
+                ),
+            )
+            new_id = str(cur.fetchone()["id"])
+        conn.commit()
+    return new_id
+
+
+def inserir_animal(dados):
+    if not _pg_enabled():
+        return _LEGACY_inserir_animal(dados)
+    client = _resolve_client_pg(dados.get("id_cliente"))
+    if not client:
+        raise ValueError("Cliente não encontrado para inserir animal.")
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                insert into public.animals (client_id, name, species, breed, sex, birth_date, coat, chip, notes, source)
+                values (%s,%s,%s,%s,%s,%s,%s,%s,%s,'manual')
+                returning id
+                """,
+                (
+                    client["id"],
+                    dados.get("nome"),
+                    dados.get("especie"),
+                    dados.get("raca"),
+                    dados.get("sexo"),
+                    dados.get("nascimento") or None,
+                    dados.get("pelagem"),
+                    dados.get("chip"),
+                    dados.get("observacao"),
+                ),
+            )
+            new_id = str(cur.fetchone()["id"])
+        conn.commit()
+    return new_id
+
+
+def inserir_registro(dados):
+    if not _pg_enabled():
+        return _LEGACY_inserir_registro(dados)
+    client = _resolve_client_pg(dados.get("id_cliente"))
+    animal = _resolve_animal_pg(dados.get("id_animal"))
+    if not client or not animal:
+        raise ValueError("Cliente ou animal não encontrado para registrar histórico.")
+    secao = (dados.get("tipo") or "").rstrip("s")
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            if secao == "consulta":
+                cur.execute(
+                    """
+                    insert into public.consultations (client_id, animal_id, consultation_date, veterinarian, notes, source)
+                    values (%s,%s,%s,%s,%s,'manual')
+                    """,
+                    (client["id"], animal["id"], dados.get("data") or None, dados.get("veterinario"), dados.get("observacao") or dados.get("descricao")),
+                )
+            elif secao == "vacina":
+                cur.execute(
+                    """
+                    insert into public.vaccinations (client_id, animal_id, vaccine_name, applied_at, veterinarian, notes, source)
+                    values (%s,%s,%s,%s,%s,%s,'manual')
+                    """,
+                    (client["id"], animal["id"], dados.get("descricao"), dados.get("data") or None, dados.get("veterinario"), dados.get("observacao")),
+                )
+            elif secao == "exame":
+                cur.execute(
+                    """
+                    insert into public.exams (client_id, animal_id, exam_date, exam_type, requester, notes, source, source_url, requires_browser)
+                    values (%s,%s,%s,%s,%s,%s,'manual',%s,false)
+                    """,
+                    (client["id"], animal["id"], dados.get("data") or None, dados.get("descricao"), dados.get("veterinario"), dados.get("observacao"), dados.get("arquivo") or None),
+                )
+            elif secao == "cirurgia":
+                cur.execute(
+                    """
+                    insert into public.surgeries (client_id, animal_id, surgery_date, title, veterinarian, notes, source)
+                    values (%s,%s,%s,%s,%s,%s,'manual')
+                    """,
+                    (client["id"], animal["id"], dados.get("data") or None, dados.get("descricao"), dados.get("veterinario"), dados.get("observacao")),
+                )
+            elif secao == "pesagem":
+                cur.execute(
+                    """
+                    insert into public.weights (client_id, animal_id, weighed_at, weight, recorded_by, notes, source)
+                    values (%s,%s,%s,%s,%s,%s,'manual')
+                    """,
+                    (client["id"], animal["id"], dados.get("data") or None, _parse_valor(dados.get("descricao")), dados.get("veterinario"), dados.get("observacao")),
+                )
+            else:
+                cur.execute(
+                    """
+                    insert into public.notes (client_id, animal_id, note_date, title, veterinarian, body, source)
+                    values (%s,%s,%s,%s,%s,%s,'manual')
+                    """,
+                    (client["id"], animal["id"], dados.get("data") or None, dados.get("descricao"), dados.get("veterinario"), dados.get("observacao")),
+                )
+        conn.commit()
+
+
+def get_servicos():
+    if not _pg_enabled():
+        return _LEGACY_get_servicos()
+    rows = _pg_fetchall(
+        """
+        select name, price, service_type
+          from public.services
+         where active = true
+         order by lower(name)
+        """
+    )
+    if not rows:
+        return _LEGACY_get_servicos()
+    return [{"nome": r["name"], "valor": f'{float(r["price"]):.2f}'.replace(".", ","), "tipo": r["service_type"]} for r in rows]
+
+
+def proximo_id_ticket():
+    if not _pg_enabled():
+        return _LEGACY_proximo_id_ticket()
+    row = _pg_fetchone("select count(*) as n from public.tickets")
+    return int(row["n"]) + 1 if row else 1
+
+
+def salvar_ticket(ticket):
+    if not _pg_enabled():
+        return _LEGACY_salvar_ticket(ticket)
+    client = _resolve_client_pg(ticket.get("id_cliente"))
+    animal = _resolve_animal_pg(ticket.get("id_animal"))
+    if not client:
+        raise ValueError("Cliente não encontrado para salvar ticket.")
+    items = ticket.get("itens", [])
+    subtotal_services = _parse_valor(ticket.get("total_servicos"))
+    subtotal_products = _parse_valor(ticket.get("total_produtos"))
+    discount_total = _parse_valor(ticket.get("total_descontos"))
+    gross_total = _parse_valor(ticket.get("total_bruto"))
+    net_total = _parse_valor(ticket.get("total_liquido"))
+    from datetime import datetime
+    ticket_date = ticket.get("data")
+    ticket_date = datetime.strptime(ticket_date, "%d/%m/%Y").date() if ticket_date else date.today()
+
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                insert into public.tickets
+                  (client_id, animal_id, ticket_date, veterinarian, status,
+                   subtotal_services, subtotal_products, discount_total, gross_total,
+                   net_total, payment_method, notes, source, source_payload)
+                values
+                  (%s,%s,%s,%s,'paid',%s,%s,%s,%s,%s,%s,%s,'manual',%s)
+                returning id
+                """,
+                (
+                    client["id"],
+                    animal["id"] if animal else None,
+                    ticket_date,
+                    ticket.get("veterinario"),
+                    subtotal_services,
+                    subtotal_products,
+                    discount_total,
+                    gross_total,
+                    net_total,
+                    ticket.get("payment_method"),
+                    ticket.get("observacao"),
+                    Json(ticket, dumps=_json_dumps) if Json else json.dumps(ticket, ensure_ascii=False, default=str),
+                ),
+            )
+            ticket_id = cur.fetchone()["id"]
+
+            for item in items:
+                cur.execute(
+                    """
+                    insert into public.ticket_items
+                      (ticket_id, description, item_type, quantity, unit_price, discount, subtotal, source, source_payload)
+                    values (%s,%s,%s,%s,%s,%s,%s,'manual',%s)
+                    """,
+                    (
+                        ticket_id,
+                        item.get("descricao"),
+                        item.get("tipo") or "clinica",
+                        int(item.get("qtd") or 1),
+                        _parse_valor(item.get("valor")),
+                        _parse_valor(item.get("desconto")),
+                        _parse_valor(item.get("subtotal")),
+                        Json(item, dumps=_json_dumps) if Json else json.dumps(item, ensure_ascii=False, default=str),
+                    ),
+                )
+        conn.commit()
+    return str(ticket_id)
+
+
+def get_ticket(ticket_id):
+    if not _pg_enabled():
+        return _LEGACY_get_ticket(ticket_id)
+    ticket = _resolve_ticket_row(ticket_id)
+    if not ticket:
+        return _LEGACY_get_ticket(ticket_id)
+    client = _map_client_row(_resolve_client_pg(ticket["client_id"]))
+    animal = _map_animal_row(_resolve_animal_pg(ticket["animal_id"])) if ticket.get("animal_id") else {}
+    items = _pg_fetchall(
+        "select description, item_type, quantity, unit_price, discount, subtotal, source_payload from public.ticket_items where ticket_id = %s order by created_at",
+        (ticket["id"],),
+    )
+    return {
+        "id": str(ticket["id"]),
+        "data": ticket["ticket_date"].strftime("%d/%m/%Y") if ticket.get("ticket_date") else "",
+        "veterinario": ticket.get("veterinarian") or "",
+        "id_cliente": client.get("id_cliente") if client else str(ticket["client_id"]),
+        "id_animal": animal.get("id_animal") if animal else (str(ticket["animal_id"]) if ticket.get("animal_id") else ""),
+        "nome_cliente": client.get("nome") if client else "",
+        "cpf": client.get("cpf") if client else "",
+        "celular": client.get("celular") if client else "",
+        "email": client.get("email") if client else "",
+        "endereco": client.get("endereco") if client else "",
+        "cidade": client.get("cidade") if client else "",
+        "nome_animal": animal.get("nome_animal") if animal else "",
+        "especie": animal.get("especie") if animal else "",
+        "raca": animal.get("raca") if animal else "",
+        "pelagem": animal.get("pelagem") if animal else "",
+        "nascimento": animal.get("nascimento") if animal else "",
+        "sexo": animal.get("sexo") if animal else "",
+        "chip": animal.get("chip") if animal else "",
+        "itens": [
+            {
+                "descricao": i.get("description"),
+                "tipo": i.get("item_type"),
+                "qtd": i.get("quantity"),
+                "valor": f'{float(i.get("unit_price") or 0):.2f}'.replace(".", ","),
+                "desconto": f'{float(i.get("discount") or 0):.2f}'.replace(".", ","),
+                "subtotal": f'{float(i.get("subtotal") or 0):.2f}'.replace(".", ","),
+            }
+            for i in items
+        ],
+        "total_servicos": f'{float(ticket.get("subtotal_services") or 0):.2f}'.replace(".", ","),
+        "total_produtos": f'{float(ticket.get("subtotal_products") or 0):.2f}'.replace(".", ","),
+        "total_bruto": f'{float(ticket.get("gross_total") or 0):.2f}'.replace(".", ","),
+        "total_descontos": f'{float(ticket.get("discount_total") or 0):.2f}'.replace(".", ","),
+        "total_liquido": f'{float(ticket.get("net_total") or 0):.2f}'.replace(".", ","),
+    }
+
+
+def get_tickets_cliente(id_cliente):
+    if not _pg_enabled():
+        return _LEGACY_get_tickets_cliente(id_cliente)
+    client = _resolve_client_pg(id_cliente)
+    if not client:
+        return _LEGACY_get_tickets_cliente(id_cliente)
+    rows = _pg_fetchall(
+        """
+        select *
+          from public.tickets
+         where client_id = %s
+         order by ticket_date desc, created_at desc
+        """,
+        (client["id"],),
+    )
+    tickets = []
+    for r in rows:
+        tickets.append({
+            "id": str(r["id"]),
+            "data": r["ticket_date"].strftime("%d/%m/%Y") if r.get("ticket_date") else "",
+            "veterinario": r.get("veterinarian") or "",
+            "nome_cliente": client.get("name") or "",
+            "nome_animal": "",
+            "total_liquido": f'{float(r.get("net_total") or 0):.2f}'.replace(".", ","),
+        })
+    return [], tickets
+
+
+def salvar_receita(dados):
+    if not _pg_enabled():
+        return _LEGACY_salvar_receita(dados)
+    client = _resolve_client_pg(dados.get("id_cliente"))
+    animal = _resolve_animal_pg(dados.get("id_animal"))
+    if not client:
+        raise ValueError("Cliente não encontrado para salvar receita.")
+    from datetime import datetime
+    prescribed_at = dados.get("data")
+    prescribed_at = datetime.strptime(prescribed_at, "%d/%m/%Y").date() if prescribed_at else date.today()
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                insert into public.prescriptions
+                  (client_id, animal_id, prescription_type, prescribed_at, veterinarian, crmv, notes, source, source_payload)
+                values (%s,%s,%s,%s,%s,%s,%s,'manual',%s)
+                returning id
+                """,
+                (
+                    client["id"],
+                    animal["id"] if animal else None,
+                    dados.get("tipo") or "simple",
+                    prescribed_at,
+                    dados.get("veterinario"),
+                    dados.get("crmv"),
+                    dados.get("observacao"),
+                    Json(dados, dumps=_json_dumps) if Json else json.dumps(dados, ensure_ascii=False, default=str),
+                ),
+            )
+            prescription_id = str(cur.fetchone()["id"])
+            oral = [l.strip() for l in (dados.get("uso_oral") or "").splitlines() if l.strip()]
+            topico = [l.strip() for l in (dados.get("uso_topico") or "").splitlines() if l.strip()]
+            seq = 1
+            for line in oral:
+                cur.execute(
+                    """
+                    insert into public.prescription_items
+                      (prescription_id, category, sequence, medication, quantity, instructions, raw_text, source)
+                    values (%s,'oral',%s,%s,%s,%s,%s,'manual')
+                    """,
+                    (prescription_id, seq, line, None, None, line),
+                )
+                seq += 1
+            seq = 1
+            for line in topico:
+                cur.execute(
+                    """
+                    insert into public.prescription_items
+                      (prescription_id, category, sequence, medication, quantity, instructions, raw_text, source)
+                    values (%s,'topical',%s,%s,%s,%s,%s,'manual')
+                    """,
+                    (prescription_id, seq, line, None, None, line),
+                )
+                seq += 1
+        conn.commit()
+    return prescription_id
+
+
+def get_receita(receita_id):
+    if not _pg_enabled():
+        return _LEGACY_get_receita(receita_id)
+    receita = _resolve_receita_row(receita_id)
+    if not receita:
+        return _LEGACY_get_receita(receita_id)
+    client = _map_client_row(_resolve_client_pg(receita["client_id"]))
+    animal = _map_animal_row(_resolve_animal_pg(receita["animal_id"])) if receita.get("animal_id") else {}
+    items = _pg_fetchall(
+        "select category, medication, quantity, instructions, raw_text from public.prescription_items where prescription_id = %s order by category, sequence",
+        (receita["id"],),
+    )
+    oral = [i.get("raw_text") or i.get("medication") for i in items if i.get("category") == "oral"]
+    topico = [i.get("raw_text") or i.get("medication") for i in items if i.get("category") == "topical"]
+    return {
+        "id": str(receita["id"]),
+        "id_cliente": client.get("id_cliente") if client else str(receita["client_id"]),
+        "id_animal": animal.get("id_animal") if animal else (str(receita["animal_id"]) if receita.get("animal_id") else ""),
+        "tipo": receita.get("prescription_type") or "simple",
+        "data": receita["prescribed_at"].strftime("%d/%m/%Y") if receita.get("prescribed_at") else "",
+        "veterinario": receita.get("veterinarian") or "",
+        "crmv": receita.get("crmv") or "",
+        "uso_oral": "\n".join(oral),
+        "uso_topico": "\n".join(topico),
+        "observacao": receita.get("notes") or "",
+        "oral_itens": oral,
+        "topico_itens": topico,
+    }
+
+
+def get_receitas_animal(id_cliente, id_animal):
+    if not _pg_enabled():
+        return _LEGACY_get_receitas_animal(id_cliente, id_animal)
+    client = _resolve_client_pg(id_cliente)
+    animal = _resolve_animal_pg(id_animal)
+    if not client:
+        return _LEGACY_get_receitas_animal(id_cliente, id_animal)
+    rows = _pg_fetchall(
+        """
+        select *
+          from public.prescriptions
+         where client_id = %s
+           and (%s::uuid is null or animal_id = %s::uuid)
+         order by prescribed_at desc, created_at desc
+        """,
+        (client["id"], animal["id"] if animal else None, animal["id"] if animal else None),
+    )
+    return [get_receita(r["id"]) for r in rows]
+
+
+def resumo_financeiro():
+    if not _pg_enabled():
+        return _LEGACY_resumo_financeiro()
+    rows = _pg_fetchall(
+        """
+        select ticket_date, net_total, status
+          from public.tickets
+         order by ticket_date asc
+        """
+    )
+    total_geral = sum(float(r.get("net_total") or 0) for r in rows)
+    total_recebido = sum(float(r.get("net_total") or 0) for r in rows if (r.get("status") or "").lower() == "paid")
+    total_pendente = total_geral - total_recebido
+    qtd_tickets = len(rows)
+    qtd_pagos = sum(1 for r in rows if (r.get("status") or "").lower() == "paid")
+    from collections import OrderedDict
+    import datetime as _dt
+    hoje = _dt.date.today()
+    meses = OrderedDict()
+    for i in range(11, -1, -1):
+        ano = hoje.year
+        mes = hoje.month - i
+        while mes <= 0:
+            mes += 12
+            ano -= 1
+        meses[(ano, mes)] = 0.0
+    for r in rows:
+        dt = r.get("ticket_date")
+        if dt and (dt.year, dt.month) in meses and (r.get("status") or "").lower() == "paid":
+            meses[(dt.year, dt.month)] += float(r.get("net_total") or 0)
+    nomes_mes = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+    fluxo = [{"label": f"{nomes_mes[m]}/{str(a)[2:]}", "valor": round(v, 2)} for (a, m), v in meses.items()]
+    return {
+        "total_geral": round(total_geral, 2),
+        "total_recebido": round(total_recebido, 2),
+        "total_pendente": round(total_pendente, 2),
+        "qtd_tickets": qtd_tickets,
+        "qtd_pagos": qtd_pagos,
+        "qtd_pendentes": qtd_tickets - qtd_pagos,
+        "fluxo": fluxo,
+        "fluxo_max": max((f["valor"] for f in fluxo), default=0) or 1,
+    }
+
+
+def ultimos_tickets(limite=15):
+    if not _pg_enabled():
+        return _LEGACY_ultimos_tickets(limite=limite)
+    rows = _pg_fetchall(
+        """
+        select t.*, c.name as client_name, a.name as animal_name
+          from public.tickets t
+          join public.clients c on c.id = t.client_id
+     left join public.animals a on a.id = t.animal_id
+         order by t.ticket_date desc, t.created_at desc
+         limit %s
+        """,
+        (limite,),
+    )
+    return [
+        {
+            "data": r["ticket_date"].strftime("%d/%m/%Y") if r.get("ticket_date") else "",
+            "valor": float(r.get("net_total") or 0),
+            "pago": (r.get("status") or "").lower() == "paid",
+            "status": r.get("status") or "",
+            "cliente": r.get("client_name") or "",
+            "animal": r.get("animal_name") or "",
+            "numero": str(r["id"]),
+            "id_cliente": str(r["client_id"]),
+            "origem": "postgres",
+        }
+        for r in rows
+    ]
