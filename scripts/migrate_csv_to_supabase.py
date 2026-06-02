@@ -761,8 +761,8 @@ def import_appointments(cur, client_map: dict[str, str], animal_map: dict[tuple[
             "employee_name": (row.get("Funcionário") or "").strip() or None,
             "notes": (row.get("Obs") or "").strip() or None,
             "status": "scheduled" if "aguard" in status_text else "attended" if "compareceu" in status_text else "absent" if "não compareceu" in status_text or "nao compareceu" in status_text else "scheduled",
-            "notified": _bool_from_text(row.get("Avisado Whats")),
-            "read_flag": _bool_from_text(row.get("Lido")),
+            "notified": _bool_from_text(row.get("Avisado Whats")) if _bool_from_text(row.get("Avisado Whats")) is not None else False,
+            "read_flag": _bool_from_text(row.get("Lido")) if _bool_from_text(row.get("Lido")) is not None else False,
             "source": "csv",
             "source_payload": row,
         }
