@@ -805,6 +805,10 @@ except Exception:  # pragma: no cover - fallback when psycopg2 is unavailable
     Json = None
 
 
+def _json_dumps(value):
+    return json.dumps(value, ensure_ascii=False, default=str)
+
+
 def _pg_enabled():
     return bool(getattr(config, "DATABASE_URL", "").strip()) and psycopg2 is not None
 

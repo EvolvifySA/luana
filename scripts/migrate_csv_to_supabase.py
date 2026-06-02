@@ -413,6 +413,403 @@ def import_tickets(cur, client_map: dict[str, str], animal_map: dict[tuple[str, 
             print(f"[migrate] tickets: {i}/{len(rows)}")
 
 
+def _bool_from_text(value: str | None) -> bool | None:
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    if not text:
+        return None
+    if text in {"sim", "s", "yes", "y", "true", "1", "x"}:
+        return True
+    if text in {"nao", "não", "n", "no", "false", "0"}:
+        return False
+    return None
+
+
+def _time_from_text(value: str | None):
+    if not value:
+        return None
+    value = str(value).strip()
+    for fmt in ("%H:%M:%S", "%H:%M"):
+        try:
+            return datetime.strptime(value, fmt).time()
+        except ValueError:
+            continue
+    return None
+
+
+def _derived_legacy_id(*parts) -> str:
+    return "|".join("" if p is None else str(p).strip() for p in parts)
+
+
+def import_consultations(cur, client_map: dict[str, str], animal_map: dict[tuple[str, str], str]):
+    rows = _maybe_limit(_read_csv(DATA_DIR / "consultas.csv"))
+    if not rows:
+        return
+    batch_id = _batch(cur, "consultas.csv", "consultations", len(rows))
+    print(f"[migrate] consultations: {len(rows)} linhas")
+    for i, row in enumerate(rows, 1):
+        client_id, animal_id = _resolve_ids(
+            cur,
+            client_map,
+            animal_map,
+            row.get("id_cliente", "").strip(),
+            row.get("id_animal", "").strip(),
+        )
+        if not client_id:
+            continue
+        normalized = {
+            "client_id": client_id,
+            "animal_id": animal_id,
+            "legacy_consultation_id": _derived_legacy_id(
+                row.get("id_cliente", ""),
+                row.get("id_animal", ""),
+                row.get("Data da consulta", ""),
+                row.get("Início", ""),
+                row.get("Término", ""),
+                i,
+            ),
+            "consultation_date": _parse_date(row.get("Data da consulta")) or _parse_date(row.get("Data")),
+            "return_date": _parse_date(row.get("Data do retorno")),
+            "start_time": _time_from_text(row.get("Início")),
+            "end_time": _time_from_text(row.get("Término")),
+            "duration_minutes": None,
+            "veterinarian": (row.get("Veterinário") or "").strip() or None,
+            "notes": (row.get("Observação") or "").strip() or None,
+            "source": "csv",
+            "source_payload": row,
+        }
+        if row.get("Duração da consulta"):
+            duration = row.get("Duração da consulta").strip()
+            try:
+                hh, mm, ss = duration.split(":")
+                normalized["duration_minutes"] = int(hh) * 60 + int(mm) + (1 if int(ss) >= 30 else 0)
+            except Exception:
+                normalized["duration_minutes"] = None
+        db_values = dict(normalized)
+        db_values["source_payload"] = Json(row, dumps=_json_dumps)
+        cur.execute(
+            """
+            insert into public.consultations
+              (client_id, animal_id, legacy_consultation_id, consultation_date, return_date, start_time, end_time, duration_minutes, veterinarian, notes, source, source_payload)
+            values
+              (%(client_id)s, %(animal_id)s, %(legacy_consultation_id)s, %(consultation_date)s, %(return_date)s, %(start_time)s, %(end_time)s, %(duration_minutes)s, %(veterinarian)s, %(notes)s, %(source)s, %(source_payload)s)
+            on conflict (legacy_consultation_id)
+            do update set
+              client_id = excluded.client_id,
+              animal_id = excluded.animal_id,
+              consultation_date = excluded.consultation_date,
+              return_date = excluded.return_date,
+              start_time = excluded.start_time,
+              end_time = excluded.end_time,
+              duration_minutes = excluded.duration_minutes,
+              veterinarian = excluded.veterinarian,
+              notes = excluded.notes,
+              source = excluded.source,
+              source_payload = excluded.source_payload
+            """,
+            db_values,
+        )
+        _insert_import_row(cur, batch_id, "consultations", normalized["legacy_consultation_id"], i, row, normalized)
+        if i % 100 == 0 or i == len(rows):
+            print(f"[migrate] consultations: {i}/{len(rows)}")
+
+
+def import_vaccinations(cur, client_map: dict[str, str], animal_map: dict[tuple[str, str], str]):
+    rows = _maybe_limit(_read_csv(DATA_DIR / "vacinas.csv"))
+    if not rows:
+        return
+    batch_id = _batch(cur, "vacinas.csv", "vaccinations", len(rows))
+    print(f"[migrate] vaccinations: {len(rows)} linhas")
+    for i, row in enumerate(rows, 1):
+        client_id, animal_id = _resolve_ids(cur, client_map, animal_map, row.get("id_cliente", "").strip(), row.get("id_animal", "").strip())
+        if not client_id:
+            continue
+        normalized = {
+            "client_id": client_id,
+            "animal_id": animal_id,
+            "legacy_vaccination_id": _derived_legacy_id(row.get("id_cliente", ""), row.get("id_animal", ""), row.get("Vacina aplicada", ""), row.get("Data da aplicação", ""), i),
+            "vaccine_name": (row.get("Vacina aplicada") or "").strip(),
+            "dose": (row.get("Dose") or "").strip() or None,
+            "applied_at": _parse_date(row.get("Data da aplicação")) or date.today(),
+            "return_at": _parse_date(row.get("Retorno")),
+            "notes": (row.get("Observação") or "").strip() or None,
+            "veterinarian": (row.get("Aplicado por") or "").strip() or None,
+            "return_attended": _bool_from_text(row.get("Compareceu retorno?")),
+            "return_notified": _bool_from_text(row.get("Avisado retorno?")),
+            "return_read": _bool_from_text(row.get("Lido retorno?")),
+            "source": "csv",
+            "source_payload": row,
+        }
+        db_values = dict(normalized)
+        db_values["source_payload"] = Json(row, dumps=_json_dumps)
+        cur.execute(
+            """
+            insert into public.vaccinations
+              (client_id, animal_id, legacy_vaccination_id, vaccine_name, dose, applied_at, return_at, notes, veterinarian, return_attended, return_notified, return_read, source, source_payload)
+            values
+              (%(client_id)s, %(animal_id)s, %(legacy_vaccination_id)s, %(vaccine_name)s, %(dose)s, %(applied_at)s, %(return_at)s, %(notes)s, %(veterinarian)s, %(return_attended)s, %(return_notified)s, %(return_read)s, %(source)s, %(source_payload)s)
+            on conflict (legacy_vaccination_id)
+            do update set
+              client_id = excluded.client_id,
+              animal_id = excluded.animal_id,
+              vaccine_name = excluded.vaccine_name,
+              dose = excluded.dose,
+              applied_at = excluded.applied_at,
+              return_at = excluded.return_at,
+              notes = excluded.notes,
+              veterinarian = excluded.veterinarian,
+              return_attended = excluded.return_attended,
+              return_notified = excluded.return_notified,
+              return_read = excluded.return_read,
+              source = excluded.source,
+              source_payload = excluded.source_payload
+            """,
+            db_values,
+        )
+        _insert_import_row(cur, batch_id, "vaccinations", normalized["legacy_vaccination_id"], i, row, normalized)
+        if i % 100 == 0 or i == len(rows):
+            print(f"[migrate] vaccinations: {i}/{len(rows)}")
+
+
+def import_vaccine_returns(cur, client_map: dict[str, str], animal_map: dict[tuple[str, str], str]):
+    rows = _maybe_limit(_read_csv(DATA_DIR / "retorno_vacinas.csv"))
+    if not rows:
+        return
+    batch_id = _batch(cur, "retorno_vacinas.csv", "vaccine_returns", len(rows))
+    print(f"[migrate] vaccine_returns: {len(rows)} linhas")
+    for i, row in enumerate(rows, 1):
+        client_id, animal_id = _resolve_ids(cur, client_map, animal_map, row.get("id_cliente", "").strip(), row.get("id_animal", "").strip())
+        if not client_id:
+            continue
+        normalized = {
+            "client_id": client_id,
+            "animal_id": animal_id,
+            "legacy_return_id": _derived_legacy_id(row.get("Cliente", ""), row.get("Animal", ""), row.get("Vacina", ""), row.get("Data do retorno", ""), i),
+            "return_date": _parse_date(row.get("Data do retorno")) or date.today(),
+            "vaccine_name": (row.get("Vacina") or "").strip() or None,
+            "vaccine_date": _parse_date(row.get("Data da vacina")),
+            "applied_by": (row.get("Aplicado por") or "").strip() or None,
+            "notify_sent": _bool_from_text(row.get("Enviar aviso")),
+            "return_attended": _bool_from_text(row.get("Compareceu retorno?")),
+            "return_read": _bool_from_text(row.get("Lido retorno?")),
+            "notes": (row.get("Observação") or "").strip() or None,
+            "source": "csv",
+            "source_payload": row,
+        }
+        db_values = dict(normalized)
+        db_values["source_payload"] = Json(row, dumps=_json_dumps)
+        cur.execute(
+            """
+            insert into public.vaccine_returns
+              (client_id, animal_id, legacy_return_id, return_date, vaccine_name, vaccine_date, applied_by, notify_sent, return_attended, return_read, notes, source, source_payload)
+            values
+              (%(client_id)s, %(animal_id)s, %(legacy_return_id)s, %(return_date)s, %(vaccine_name)s, %(vaccine_date)s, %(applied_by)s, %(notify_sent)s, %(return_attended)s, %(return_read)s, %(notes)s, %(source)s, %(source_payload)s)
+            on conflict (legacy_return_id)
+            do update set
+              client_id = excluded.client_id,
+              animal_id = excluded.animal_id,
+              return_date = excluded.return_date,
+              vaccine_name = excluded.vaccine_name,
+              vaccine_date = excluded.vaccine_date,
+              applied_by = excluded.applied_by,
+              notify_sent = excluded.notify_sent,
+              return_attended = excluded.return_attended,
+              return_read = excluded.return_read,
+              notes = excluded.notes,
+              source = excluded.source,
+              source_payload = excluded.source_payload
+            """,
+            db_values,
+        )
+        _insert_import_row(cur, batch_id, "vaccine_returns", normalized["legacy_return_id"], i, row, normalized)
+        if i % 100 == 0 or i == len(rows):
+            print(f"[migrate] vaccine_returns: {i}/{len(rows)}")
+
+
+def import_exams(cur, client_map: dict[str, str], animal_map: dict[tuple[str, str], str]):
+    rows = _maybe_limit(_read_csv(DATA_DIR / "exames.csv"))
+    if not rows:
+        return
+    batch_id = _batch(cur, "exames.csv", "exams", len(rows))
+    print(f"[migrate] exams: {len(rows)} linhas")
+    for i, row in enumerate(rows, 1):
+        client_id, animal_id = _resolve_ids(cur, client_map, animal_map, row.get("id_cliente", "").strip(), row.get("id_animal", "").strip())
+        if not client_id:
+            continue
+        file_path = (row.get("caminho_pdf") or "").strip() or None
+        normalized = {
+            "client_id": client_id,
+            "animal_id": animal_id,
+            "legacy_exam_id": _derived_legacy_id(row.get("id_cliente", ""), row.get("id_animal", ""), row.get("Tipo de exame", ""), row.get("Data do Exame", ""), i),
+            "exam_date": _parse_date(row.get("Data do Exame")),
+            "registered_at": _parse_date(row.get("Data do registro")),
+            "exam_type": (row.get("Tipo de exame") or row.get("Tamanho") or "").strip() or None,
+            "status": (row.get("Tipo") or "").strip() or None,
+            "file_path": file_path,
+            "source_url": (row.get("url_pdf") or "").strip() or None,
+            "requires_browser": (row.get("Tipo") or "").strip().lower() == "requer_navegador",
+            "reviewed": _bool_from_text(row.get("Laudado")),
+            "requester": (row.get("Solicitante") or "").strip() or None,
+            "external_requester": (row.get("Solicitante externo") or "").strip() or None,
+            "sent_by": (row.get("Enviado por") or "").strip() or None,
+            "notes": (row.get("Observação") or "").strip() or None,
+            "source": "csv",
+            "source_payload": row,
+        }
+        db_values = dict(normalized)
+        db_values["source_payload"] = Json(row, dumps=_json_dumps)
+        cur.execute(
+            """
+            insert into public.exams
+              (client_id, animal_id, legacy_exam_id, exam_date, registered_at, exam_type, status, file_path, source_url, requires_browser, reviewed, requester, external_requester, sent_by, notes, source, source_payload)
+            values
+              (%(client_id)s, %(animal_id)s, %(legacy_exam_id)s, %(exam_date)s, %(registered_at)s, %(exam_type)s, %(status)s, %(file_path)s, %(source_url)s, %(requires_browser)s, %(reviewed)s, %(requester)s, %(external_requester)s, %(sent_by)s, %(notes)s, %(source)s, %(source_payload)s)
+            on conflict (legacy_exam_id)
+            do update set
+              client_id = excluded.client_id,
+              animal_id = excluded.animal_id,
+              exam_date = excluded.exam_date,
+              registered_at = excluded.registered_at,
+              exam_type = excluded.exam_type,
+              status = excluded.status,
+              file_path = excluded.file_path,
+              source_url = excluded.source_url,
+              requires_browser = excluded.requires_browser,
+              reviewed = excluded.reviewed,
+              requester = excluded.requester,
+              external_requester = excluded.external_requester,
+              sent_by = excluded.sent_by,
+              notes = excluded.notes,
+              source = excluded.source,
+              source_payload = excluded.source_payload
+            """,
+            db_values,
+        )
+        _insert_import_row(cur, batch_id, "exams", normalized["legacy_exam_id"], i, row, normalized)
+        if i % 100 == 0 or i == len(rows):
+            print(f"[migrate] exams: {i}/{len(rows)}")
+
+
+def import_weights(cur, client_map: dict[str, str], animal_map: dict[tuple[str, str], str]):
+    rows = _maybe_limit(_read_csv(DATA_DIR / "pesagens.csv"))
+    if not rows:
+        return
+    batch_id = _batch(cur, "pesagens.csv", "weights", len(rows))
+    print(f"[migrate] weights: {len(rows)} linhas")
+    for i, row in enumerate(rows, 1):
+        client_id, animal_id = _resolve_ids(cur, client_map, animal_map, row.get("id_cliente", "").strip(), row.get("id_animal", "").strip())
+        if not client_id:
+            continue
+        normalized = {
+            "client_id": client_id,
+            "animal_id": animal_id,
+            "legacy_weight_id": _derived_legacy_id(row.get("id_cliente", ""), row.get("id_animal", ""), row.get("Data da pesagem", ""), i),
+            "weighed_at": _parse_date(row.get("Data da pesagem")) or date.today(),
+            "weight": _parse_number(row.get("Peso")),
+            "recorded_by": (row.get("Registrado por") or "").strip() or None,
+            "notes": (row.get("Observação") or "").strip() or None,
+            "source": "csv",
+            "source_payload": row,
+        }
+        db_values = dict(normalized)
+        db_values["source_payload"] = Json(row, dumps=_json_dumps)
+        cur.execute(
+            """
+            insert into public.weights
+              (client_id, animal_id, legacy_weight_id, weighed_at, weight, recorded_by, notes, source, source_payload)
+            values
+              (%(client_id)s, %(animal_id)s, %(legacy_weight_id)s, %(weighed_at)s, %(weight)s, %(recorded_by)s, %(notes)s, %(source)s, %(source_payload)s)
+            on conflict (legacy_weight_id)
+            do update set
+              client_id = excluded.client_id,
+              animal_id = excluded.animal_id,
+              weighed_at = excluded.weighed_at,
+              weight = excluded.weight,
+              recorded_by = excluded.recorded_by,
+              notes = excluded.notes,
+              source = excluded.source,
+              source_payload = excluded.source_payload
+            """,
+            db_values,
+        )
+        _insert_import_row(cur, batch_id, "weights", normalized["legacy_weight_id"], i, row, normalized)
+        if i % 100 == 0 or i == len(rows):
+            print(f"[migrate] weights: {i}/{len(rows)}")
+
+
+def import_appointments(cur, client_map: dict[str, str], animal_map: dict[tuple[str, str], str]):
+    rows = _maybe_limit(_read_csv(DATA_DIR / "agendamentos.csv"))
+    if not rows:
+        return
+    batch_id = _batch(cur, "agendamentos.csv", "appointments", len(rows))
+    print(f"[migrate] appointments: {len(rows)} linhas")
+    for i, row in enumerate(rows, 1):
+        client_id, animal_id = _resolve_ids(cur, client_map, animal_map, row.get("id_cliente", "").strip(), row.get("id_animal", "").strip())
+        if not client_id:
+            continue
+        status_text = (row.get("Status") or "").strip().lower()
+        normalized = {
+            "client_id": client_id,
+            "animal_id": animal_id,
+            "legacy_appointment_id": _derived_legacy_id(row.get("id_cliente", ""), row.get("id_animal", ""), row.get("Data", ""), row.get("Inicio", ""), row.get("Final", ""), i),
+            "appointment_date": _parse_date(row.get("Data")) or date.today(),
+            "start_time": _time_from_text(row.get("Inicio")),
+            "end_time": _time_from_text(row.get("Final")),
+            "agenda_type": (row.get("Agenda") or "").strip() or None,
+            "taxi_dog": _bool_from_text(row.get("Taxi dog")) or False,
+            "employee_name": (row.get("Funcionário") or "").strip() or None,
+            "notes": (row.get("Obs") or "").strip() or None,
+            "status": "scheduled" if "aguard" in status_text else "attended" if "compareceu" in status_text else "absent" if "não compareceu" in status_text or "nao compareceu" in status_text else "scheduled",
+            "notified": _bool_from_text(row.get("Avisado Whats")),
+            "read_flag": _bool_from_text(row.get("Lido")),
+            "source": "csv",
+            "source_payload": row,
+        }
+        db_values = dict(normalized)
+        db_values["source_payload"] = Json(row, dumps=_json_dumps)
+        cur.execute(
+            """
+            insert into public.appointments
+              (client_id, animal_id, legacy_appointment_id, appointment_date, start_time, end_time, agenda_type, taxi_dog, employee_name, notes, status, notified, read_flag, source, source_payload)
+            values
+              (%(client_id)s, %(animal_id)s, %(legacy_appointment_id)s, %(appointment_date)s, %(start_time)s, %(end_time)s, %(agenda_type)s, %(taxi_dog)s, %(employee_name)s, %(notes)s, %(status)s, %(notified)s, %(read_flag)s, %(source)s, %(source_payload)s)
+            on conflict (legacy_appointment_id)
+            do update set
+              client_id = excluded.client_id,
+              animal_id = excluded.animal_id,
+              appointment_date = excluded.appointment_date,
+              start_time = excluded.start_time,
+              end_time = excluded.end_time,
+              agenda_type = excluded.agenda_type,
+              taxi_dog = excluded.taxi_dog,
+              employee_name = excluded.employee_name,
+              notes = excluded.notes,
+              status = excluded.status,
+              notified = excluded.notified,
+              read_flag = excluded.read_flag,
+              source = excluded.source,
+              source_payload = excluded.source_payload
+            """,
+            db_values,
+        )
+        _insert_import_row(cur, batch_id, "appointments", normalized["legacy_appointment_id"], i, row, normalized)
+        if i % 100 == 0 or i == len(rows):
+            print(f"[migrate] appointments: {i}/{len(rows)}")
+
+
+def import_prescriptions(cur, client_map: dict[str, str], animal_map: dict[tuple[str, str], str]):
+    print("[migrate] prescriptions: sem CSV direto neste export, pulando")
+
+
+def import_surgeries(cur, client_map: dict[str, str], animal_map: dict[tuple[str, str], str]):
+    print("[migrate] surgeries: sem CSV direto neste export, pulando")
+
+
+def import_notes(cur, client_map: dict[str, str], animal_map: dict[tuple[str, str], str]):
+    print("[migrate] notes: sem CSV direto neste export, pulando")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true", help="Executa tudo em uma transaÃ§Ã£o e faz rollback.")
