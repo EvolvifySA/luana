@@ -62,7 +62,7 @@ SECOES = [
     ("anotacoes",   "Anotações"),
 ]
 
-ENDPOINTS_PUBLICOS = {"login", "static"}
+ENDPOINTS_PUBLICOS = {"login", "solicitar_redefinicao", "redefinir_senha", "static"}
 
 CONSULTA_FIELDS = [
     "consultation_date",
@@ -252,33 +252,87 @@ def register_routes(app):
             atual = request.form.get("senha_atual", "")
             nova  = request.form.get("senha_nova", "")
             conf  = request.form.get("senha_conf", "")
-            if not db.verificar_login(session["usuario"]["username"], atual):
+            verif = db.verificar_login(session["usuario"]["username"], atual)
+            if not verif:
                 flash("Senha atual incorreta.", "danger")
             elif nova != conf:
                 flash("A confirmação não confere.", "danger")
             elif len(nova) < 4:
                 flash("A nova senha deve ter ao menos 4 caracteres.", "danger")
             else:
-                db.trocar_senha(session["usuario"]["id"], nova)
-                flash("Senha alterada com sucesso!", "success")
+                try:
+                    db.trocar_senha(
+                        session["usuario"]["id"],
+                        nova,
+                        access_token=session["usuario"].get("auth_access_token") or verif.get("auth_access_token"),
+                    )
+                    flash("Senha alterada com sucesso!", "success")
+                except Exception as exc:
+                    flash(f"Nao foi possivel alterar a senha: {exc}", "danger")
             return redirect(url_for("conta"))
         return render_template("conta.html")
+
+    @app.route("/esqueci-senha", methods=["GET", "POST"])
+    def solicitar_redefinicao():
+        if request.method == "POST":
+            username = (request.form.get("username") or "").strip()
+            if not username:
+                flash("Informe o nome de usuário.", "danger")
+                return render_template("esqueci_senha.html")
+            try:
+                db.solicitar_reset_senha(username, url_for("redefinir_senha", _external=True))
+                flash("Se o usuário estiver configurado com e-mail, o link de redefinição foi enviado.", "success")
+                return redirect(url_for("login"))
+            except Exception as exc:
+                flash(str(exc), "danger")
+        return render_template("esqueci_senha.html")
+
+    @app.route("/redefinir-senha", methods=["GET", "POST"])
+    def redefinir_senha():
+        token_hash = (
+            request.values.get("token_hash")
+            or request.values.get("token")
+            or request.args.get("token_hash")
+            or request.args.get("token")
+            or ""
+        ).strip()
+        tipo = (request.values.get("type") or request.args.get("type") or "recovery").strip()
+        redirect_to = request.args.get("redirect_to") or request.form.get("redirect_to") or ""
+        if request.method == "POST":
+            senha = request.form.get("senha_nova", "")
+            conf = request.form.get("senha_conf", "")
+            if not token_hash:
+                flash("Link de redefinição inválido ou incompleto.", "danger")
+            elif senha != conf:
+                flash("A confirmação não confere.", "danger")
+            elif len(senha) < 4:
+                flash("A nova senha deve ter ao menos 4 caracteres.", "danger")
+            else:
+                try:
+                    db.confirmar_reset_senha(token_hash, senha, tipo=tipo)
+                    flash("Senha redefinida com sucesso. Você já pode entrar no sistema.", "success")
+                    return redirect(url_for("login"))
+                except Exception as exc:
+                    flash(str(exc), "danger")
+        return render_template(
+            "redefinir_senha.html",
+            token_hash=token_hash,
+            tipo=tipo,
+            redirect_to=redirect_to,
+        )
 
     # ─── Dashboard ────────────────────────────────────────────────────────────
     @app.route("/")
     def dashboard():
         inicio, fim, filtro = _periodo_request()
-        stats = {
-            "clientes":  db.total_clientes(),
-            "animais":   db.total_animais(),
-            "consultas": db.total_registros("consultas"),
-            "vacinas":   db.total_registros("vacinas"),
-            "exames":    db.total_registros("exames"),
-        }
-        return render_template("dashboard.html", stats=stats,
-                               fin=db.resumo_financeiro(inicio, fim),
-                               ultimos=db.ultimos_tickets(8, inicio, fim),
-                               filtro=filtro)
+        dados = db.dashboard_overview(inicio, fim)
+        return render_template(
+            "dashboard.html",
+            stats=dados["stats"],
+            fin=dados["fin"],
+            ultimos=dados["ultimos"],
+            filtro=filtro,
+        )
 
     @app.route("/financeiro")
     def financeiro():
@@ -320,9 +374,9 @@ def register_routes(app):
         pagina  = int(request.args.get("p", 1))
         por_pag = 50
         offset  = (pagina - 1) * por_pag
-        total   = db.total_clientes()
+        clientes, total = db.buscar_clientes_paginado(q=q, limite=por_pag, offset=offset)
         return render_template("clientes.html",
-                               clientes=db.buscar_clientes(q=q, limite=por_pag, offset=offset),
+                               clientes=clientes,
                                q=q, pagina=pagina,
                                paginas=(total + por_pag - 1) // por_pag)
 

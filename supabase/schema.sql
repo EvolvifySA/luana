@@ -25,6 +25,8 @@ create table if not exists public.users (
   username text not null unique,
   password_hash text not null,
   full_name text,
+  email text,
+  auth_user_id uuid,
   role text not null default 'staff' check (role in ('admin', 'staff', 'vet', 'owner')),
   active boolean not null default true,
   created_at timestamptz not null default now(),
@@ -42,6 +44,8 @@ end
 $$;
 
 create index if not exists idx_users_username_lower on public.users (lower(username));
+create unique index if not exists idx_users_email_lower on public.users (lower(email)) where email is not null;
+create unique index if not exists idx_users_auth_user_id on public.users (auth_user_id) where auth_user_id is not null;
 
 -- ---------------------------------------------------------------------
 -- Clientes

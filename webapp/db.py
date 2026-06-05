@@ -22,6 +22,8 @@ import re
 import logging
 from functools import lru_cache
 
+import requests
+
 import config
 
 # ─── LOG ──────────────────────────────────────────────────────────────────────
@@ -1090,11 +1092,164 @@ def _resolve_consultation_row(consulta_id):
     return _pg_fetchone("select * from public.consultations where id::text = %s limit 1", (str(consulta_id),))
 
 
+def _default_admin_email():
+    # Reaproveita o e-mail já configurado da clínica como mailbox padrão.
+    return getattr(config, "DEFAULT_ADMIN_EMAIL", "") or config.CLINICA.get("email") or ""
+
+
+def _supabase_auth_url(path):
+    base = (getattr(config, "SUPABASE_URL", "") or "").rstrip("/")
+    if not base:
+        raise RuntimeError("SUPABASE_URL não configurado.")
+    return f"{base}{path}"
+
+
+def _supabase_auth_request(method, path, *, json_data=None, params=None, bearer=None, timeout=25):
+    api_key = (getattr(config, "SUPABASE_SERVICE_ROLE_KEY", "") or "").strip()
+    if not api_key:
+        raise RuntimeError("SUPABASE_SERVICE_ROLE_KEY não configurado.")
+    headers = {
+        "apikey": api_key,
+        "Authorization": f"Bearer {bearer or api_key}",
+        "Accept": "application/json",
+    }
+    if json_data is not None:
+        headers["Content-Type"] = "application/json"
+    resp = requests.request(
+        method.upper(),
+        _supabase_auth_url(path),
+        headers=headers,
+        json=json_data,
+        params=params,
+        timeout=timeout,
+    )
+    return resp
+
+
+def _pg_usuario_por_username(username):
+    return _pg_fetchone(
+        """
+        select id, username, full_name, password_hash, email, auth_user_id, active
+          from public.users
+         where lower(username) = lower(%s)
+         limit 1
+        """,
+        (username.strip(),),
+    )
+
+
+def _pg_usuario_por_id(user_id):
+    return _pg_fetchone(
+        """
+        select id, username, full_name, password_hash, email, auth_user_id, active
+          from public.users
+         where id::text = %s
+            or auth_user_id::text = %s
+         limit 1
+        """,
+        (str(user_id), str(user_id)),
+    )
+
+
+def _pg_usuario_por_email(email):
+    return _pg_fetchone(
+        """
+        select id, username, full_name, password_hash, email, auth_user_id, active
+          from public.users
+         where lower(email) = lower(%s)
+         limit 1
+        """,
+        (email.strip(),),
+    )
+
+
+def _pg_auth_user_por_email(email):
+    return _pg_fetchone(
+        """
+        select id::text as id, email, created_at, email_confirmed_at
+          from auth.users
+         where lower(email) = lower(%s)
+         limit 1
+        """,
+        (email.strip(),),
+    )
+
+
+def _sincronizar_public_user_auth(row, auth_user_id=None):
+    if not row:
+        return
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                update public.users
+                   set email = coalesce(nullif(email, ''), %s),
+                       auth_user_id = coalesce(auth_user_id, %s::uuid),
+                       updated_at = now()
+                 where id = %s
+                """,
+                (_default_admin_email(), auth_user_id, row["id"]),
+            )
+        conn.commit()
+
+
+def _auth_usuario_ensure(row, senha_padrao=None):
+    if not row:
+        return None
+    email = (row.get("email") or "").strip()
+    if not email:
+        email = _default_admin_email()
+    if not email:
+        raise RuntimeError("Nenhum e-mail configurado para o usuário.")
+
+    auth_user = _pg_auth_user_por_email(email)
+    if auth_user:
+        _sincronizar_public_user_auth(row, auth_user.get("id"))
+        return auth_user
+
+    senha = senha_padrao or "evolvify2026"
+    resp = _supabase_auth_request(
+        "POST",
+        "/auth/v1/admin/users",
+        json_data={
+            "email": email,
+            "password": senha,
+            "email_confirm": True,
+            "user_metadata": {
+                "full_name": row.get("full_name") or row.get("username") or "",
+                "username": row.get("username") or "",
+            },
+        },
+    )
+    if resp.status_code not in (200, 201):
+        # Se já existir um usuário no Auth mas a criação falhou, tenta recuperar pelo e-mail.
+        fallback = _pg_auth_user_por_email(email)
+        if fallback:
+            _sincronizar_public_user_auth(row, fallback.get("id"))
+            return fallback
+        raise RuntimeError(_extract_supabase_error(resp))
+
+    payload = resp.json() if resp.content else {}
+    auth_user = payload.get("user") or payload.get("data", {}).get("user") or {}
+    auth_id = auth_user.get("id")
+    _sincronizar_public_user_auth(row, auth_id)
+    return auth_user
+
+
+def _extract_supabase_error(resp):
+    try:
+        data = resp.json()
+        return data.get("msg") or data.get("error_description") or data.get("error") or resp.text
+    except Exception:
+        return resp.text or f"Erro HTTP {resp.status_code}"
+
+
 def garantir_usuario_padrao():
     if not _pg_enabled():
         return _LEGACY_garantir_usuario_padrao()
     from werkzeug.security import generate_password_hash
 
+    default_email = _default_admin_email()
     with _pg_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("select count(*) from public.users")
@@ -1102,42 +1257,141 @@ def garantir_usuario_padrao():
             if total == 0:
                 cur.execute(
                     """
-                    insert into public.users (username, password_hash, full_name, role, active)
-                    values (%s, %s, %s, %s, true)
+                    insert into public.users (username, password_hash, full_name, role, active, email)
+                    values (%s, %s, %s, %s, true, %s)
                     """,
-                    ("luana", generate_password_hash("evolvify2026"), "Luana Feitosa", "admin"),
+                    ("luana", generate_password_hash("evolvify2026"), "Luana Feitosa", "admin", default_email or None),
                 )
                 conn.commit()
+                row = _pg_usuario_por_username("luana")
+                if row:
+                    _auth_usuario_ensure(row, "evolvify2026")
                 return ("luana", "evolvify2026")
+
+    row = _pg_usuario_por_username("luana")
+    if row and (not row.get("email")) and default_email:
+        with _pg_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "update public.users set email = %s, updated_at = now() where id = %s",
+                    (default_email, row["id"]),
+                )
+            conn.commit()
+        row["email"] = default_email
+    if row and row.get("email") and not row.get("auth_user_id"):
+        _auth_usuario_ensure(row, "evolvify2026")
     return None
 
 
 def verificar_login(username, senha):
     if not _pg_enabled():
         return _LEGACY_verificar_login(username, senha)
-    from werkzeug.security import check_password_hash
+    row = _pg_usuario_por_username(username)
+    if not row:
+        return None
+    if not row.get("active", True):
+        return None
+    if not row.get("email"):
+        return None
 
-    row = _pg_fetchone(
-        "select id, username, full_name, password_hash from public.users where lower(username) = lower(%s) limit 1",
-        (username.strip(),),
+    resp = _supabase_auth_request(
+        "POST",
+        "/auth/v1/token",
+        params={"grant_type": "password"},
+        json_data={"email": row["email"], "password": senha},
     )
-    if row and check_password_hash(row["password_hash"], senha):
-        return {"id": row["id"], "username": row["username"], "nome": row.get("full_name") or row["username"]}
-    return None
+    if resp.status_code != 200:
+        return None
+
+    payload = resp.json() if resp.content else {}
+    auth_user = payload.get("user") or {}
+    _sincronizar_public_user_auth(row, auth_user.get("id"))
+    return {
+        "id": row["id"],
+        "username": row["username"],
+        "nome": row.get("full_name") or row["username"],
+        "email": row.get("email") or "",
+        "auth_user_id": auth_user.get("id") or row.get("auth_user_id") or "",
+        "auth_access_token": payload.get("access_token") or "",
+        "auth_refresh_token": payload.get("refresh_token") or "",
+    }
 
 
-def trocar_senha(user_id, senha_nova):
+def trocar_senha(user_id, senha_nova, access_token=None):
     if not _pg_enabled():
         return _LEGACY_trocar_senha(user_id, senha_nova)
     from werkzeug.security import generate_password_hash
 
+    row = _pg_usuario_por_id(user_id)
+    if not row:
+        raise ValueError("Usuário não encontrado.")
+    if not access_token:
+        raise ValueError("Sessão Supabase ausente para alterar a senha.")
+
+    resp = _supabase_auth_request(
+        "PUT",
+        "/auth/v1/user",
+        bearer=access_token,
+        json_data={"password": senha_nova},
+    )
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(_extract_supabase_error(resp))
+
     with _pg_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "update public.users set password_hash = %s, updated_at = now() where id::text = %s",
+                """
+                update public.users
+                   set password_hash = %s,
+                       updated_at = now()
+                 where id::text = %s
+                """,
                 (generate_password_hash(senha_nova), str(user_id)),
             )
         conn.commit()
+
+
+def solicitar_reset_senha(username, redirect_to):
+    if not _pg_enabled():
+        raise RuntimeError("Redefinição de senha disponível apenas com Supabase Auth.")
+    row = _pg_usuario_por_username(username)
+    if not row:
+        raise ValueError("Usuário não encontrado.")
+    email = (row.get("email") or "").strip()
+    if not email:
+        raise ValueError("Este usuário ainda não possui e-mail configurado.")
+
+    resp = _supabase_auth_request(
+        "POST",
+        "/auth/v1/recover",
+        json_data={"email": email, "redirect_to": redirect_to},
+    )
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(_extract_supabase_error(resp))
+    return email
+
+
+def confirmar_reset_senha(token_hash, senha_nova, tipo="recovery"):
+    if not _pg_enabled():
+        raise RuntimeError("Redefinição de senha disponível apenas com Supabase Auth.")
+    resp = _supabase_auth_request(
+        "POST",
+        "/auth/v1/verify",
+        json_data={"token_hash": token_hash, "type": tipo},
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(_extract_supabase_error(resp))
+    payload = resp.json() if resp.content else {}
+    session_data = payload.get("session") or payload
+    access_token = session_data.get("access_token") or payload.get("access_token")
+    if not access_token:
+        raise RuntimeError("Não foi possível obter a sessão Supabase para redefinir a senha.")
+    user = session_data.get("user") or payload.get("user") or {}
+    user_id = user.get("id")
+    if not user_id:
+        raise RuntimeError("Usuário autenticado não identificado.")
+    trocar_senha(user_id, senha_nova, access_token=access_token)
+    return user_id
 
 
 def total_clientes():
@@ -1176,31 +1430,51 @@ def total_registros(secao):
 def buscar_clientes(q="", limite=50, offset=0):
     if not _pg_enabled():
         return _LEGACY_buscar_clientes(q=q, limite=limite, offset=offset)
-    params = [limite, offset]
-    where = ""
+    rows, _ = buscar_clientes_paginado(q=q, limite=limite, offset=offset)
+    return rows
+
+
+def buscar_clientes_paginado(q="", limite=50, offset=0):
+    """Retorna (clientes, total) com um único round-trip ao Postgres."""
+    if not _pg_enabled():
+        rows = _LEGACY_buscar_clientes(q=q, limite=limite, offset=offset)
+        return rows, _LEGACY_total_clientes()
+
+    where_sql = ""
+    params = []
     if q:
-        where = "where lower(coalesce(name, '')) like lower(%s)"
-        params = [f"%{q}%", limite, offset]
-    rows = _pg_fetchall(
-        f"""
-        select *
-          from public.clients
-          {where}
-         order by lower(name)
-         limit %s offset %s
-        """,
-        tuple(params),
-    )
-    return [_map_client_row(r) for r in rows]
+        where_sql = "where lower(coalesce(name, '')) like lower(%s)"
+        params.append(f"%{q}%")
+
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                with filtered as (
+                    select *, count(*) over() as total_count
+                      from public.clients
+                      {where_sql}
+                )
+                select *
+                  from filtered
+                 order by lower(name)
+                 limit %s offset %s
+                """,
+                tuple(params + [limite, offset]),
+            )
+            raw_rows = cur.fetchall()
+
+    total = int(raw_rows[0]["total_count"]) if raw_rows else 0
+    rows = [_map_client_row(r) for r in raw_rows]
+
+    return rows, total
 
 
 def get_cliente(id_cliente):
     if not _pg_enabled():
         return _LEGACY_get_cliente(id_cliente)
     row = _resolve_client_pg(id_cliente)
-    if row:
-        return _map_client_row(row)
-    return _LEGACY_get_cliente(id_cliente)
+    return _map_client_row(row) if row else None
 
 
 def get_animais_cliente(id_cliente):
@@ -1208,12 +1482,10 @@ def get_animais_cliente(id_cliente):
         return _LEGACY_get_animais_cliente(id_cliente)
     client = _resolve_client_pg(id_cliente)
     if not client:
-        return _LEGACY_get_animais_cliente(id_cliente)
+        return []
     rows = _pg_fetchall("select * from public.animals where client_id = %s order by lower(name)", (client["id"],))
     animais = [_map_animal_row(r) for r in rows]
-    if animais:
-        return animais
-    return _LEGACY_get_animais_cliente(id_cliente)
+    return animais
 
 
 def get_registros_animal(id_cliente, id_animal, secao):
@@ -1222,7 +1494,7 @@ def get_registros_animal(id_cliente, id_animal, secao):
     client = _resolve_client_pg(id_cliente)
     animal = _resolve_animal_pg(id_animal)
     if not client or not animal:
-        return _LEGACY_get_registros_animal(id_cliente, id_animal, secao)
+        return []
 
     if secao == "consultas":
         rows = _pg_fetchall(
@@ -1274,8 +1546,6 @@ def get_registros_animal(id_cliente, id_animal, secao):
             (client["id"], animal["id"]),
         )
 
-    if not rows:
-        return _LEGACY_get_registros_animal(id_cliente, id_animal, secao)
     return [
         {
             "id": str(r.get("id")) if r.get("id") else "",
@@ -1733,7 +2003,7 @@ def get_consultas_animal(id_cliente, id_animal):
     client = _resolve_client_pg(id_cliente)
     animal = _resolve_animal_pg(id_animal)
     if not client:
-        return _LEGACY_get_registros_animal(id_cliente, id_animal, "consultas")
+        return []
     rows = _pg_fetchall(
         """
         select *
@@ -1780,8 +2050,6 @@ def get_servicos():
          order by lower(name)
         """
     )
-    if not rows:
-        return _LEGACY_get_servicos()
     return [{"nome": r["name"], "valor": f'{float(r["price"]):.2f}'.replace(".", ","), "tipo": r["service_type"]} for r in rows]
 
 
@@ -1865,7 +2133,7 @@ def get_ticket(ticket_id):
         return _LEGACY_get_ticket(ticket_id)
     ticket = _resolve_ticket_row(ticket_id)
     if not ticket:
-        return _LEGACY_get_ticket(ticket_id)
+        return None
     client = _map_client_row(_resolve_client_pg(ticket["client_id"]))
     animal = _map_animal_row(_resolve_animal_pg(ticket["animal_id"])) if ticket.get("animal_id") else {}
     items = _pg_fetchall(
@@ -2036,7 +2304,7 @@ def get_receita(receita_id):
         return _LEGACY_get_receita(receita_id)
     receita = _resolve_receita_row(receita_id)
     if not receita:
-        return _LEGACY_get_receita(receita_id)
+        return None
     client = _map_client_row(_resolve_client_pg(receita["client_id"]))
     animal = _map_animal_row(_resolve_animal_pg(receita["animal_id"])) if receita.get("animal_id") else {}
     items = _pg_fetchall(
@@ -2067,7 +2335,7 @@ def get_receitas_animal(id_cliente, id_animal):
     client = _resolve_client_pg(id_cliente)
     animal = _resolve_animal_pg(id_animal)
     if not client:
-        return _LEGACY_get_receitas_animal(id_cliente, id_animal)
+        return []
     rows = _pg_fetchall(
         """
         select *
@@ -2086,53 +2354,48 @@ def resumo_financeiro(inicio=None, fim=None):
         return _LEGACY_resumo_financeiro(inicio, fim)
     rows = _pg_fetchall(
         """
-        select ticket_date, net_total, status
+        select
+            coalesce(sum(net_total), 0) as total_geral,
+            coalesce(sum(net_total) filter (where lower(status) = 'paid'), 0) as total_recebido,
+            count(*) as qtd_tickets,
+            count(*) filter (where lower(status) = 'paid') as qtd_pagos
           from public.tickets
-         order by ticket_date asc
+         where (%s::date is null or ticket_date >= %s::date)
+           and (%s::date is null or ticket_date <= %s::date)
+        """,
+        (inicio, inicio, fim, fim),
+    )
+    row = rows[0] if rows else {}
+    fluxo_rows = _pg_fetchall(
+        """
+        with months as (
+            select date_trunc('month', current_date) - (interval '1 month' * gs.i) as month_start
+              from generate_series(11, 0, -1) as gs(i)
+        )
+        select
+            extract(year from m.month_start)::int as ano,
+            extract(month from m.month_start)::int as mes,
+            coalesce(sum(t.net_total) filter (where lower(t.status) = 'paid'), 0) as valor
+          from months m
+     left join public.tickets t
+            on date_trunc('month', t.ticket_date) = m.month_start
+           and lower(t.status) = 'paid'
+         group by m.month_start
+         order by m.month_start
         """
     )
-
-    def _no_per(r):
-        dt = r.get("ticket_date")
-        if not dt:
-            return inicio is None and fim is None
-        iso = dt.isoformat()
-        if inicio and iso < inicio:
-            return False
-        if fim and iso > fim:
-            return False
-        return True
-
-    filtrados = [r for r in rows if _no_per(r)]
-    total_geral = sum(float(r.get("net_total") or 0) for r in filtrados)
-    total_recebido = sum(float(r.get("net_total") or 0) for r in filtrados if (r.get("status") or "").lower() == "paid")
-    total_pendente = total_geral - total_recebido
-    qtd_tickets = len(filtrados)
-    qtd_pagos = sum(1 for r in filtrados if (r.get("status") or "").lower() == "paid")
-    from collections import OrderedDict
-    import datetime as _dt
-    hoje = _dt.date.today()
-    meses = OrderedDict()
-    for i in range(11, -1, -1):
-        ano = hoje.year
-        mes = hoje.month - i
-        while mes <= 0:
-            mes += 12
-            ano -= 1
-        meses[(ano, mes)] = 0.0
-    for r in rows:
-        dt = r.get("ticket_date")
-        if dt and (dt.year, dt.month) in meses and (r.get("status") or "").lower() == "paid":
-            meses[(dt.year, dt.month)] += float(r.get("net_total") or 0)
     nomes_mes = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
-    fluxo = [{"label": f"{nomes_mes[m]}/{str(a)[2:]}", "valor": round(v, 2)} for (a, m), v in meses.items()]
+    fluxo = [
+        {"label": f"{nomes_mes[int(r['mes'])]}/{str(int(r['ano']))[2:]}", "valor": round(float(r.get("valor") or 0), 2)}
+        for r in fluxo_rows
+    ]
     return {
-        "total_geral": round(total_geral, 2),
-        "total_recebido": round(total_recebido, 2),
-        "total_pendente": round(total_pendente, 2),
-        "qtd_tickets": qtd_tickets,
-        "qtd_pagos": qtd_pagos,
-        "qtd_pendentes": qtd_tickets - qtd_pagos,
+        "total_geral": round(float(row.get("total_geral") or 0), 2),
+        "total_recebido": round(float(row.get("total_recebido") or 0), 2),
+        "total_pendente": round(float(row.get("total_geral") or 0) - float(row.get("total_recebido") or 0), 2),
+        "qtd_tickets": int(row.get("qtd_tickets") or 0),
+        "qtd_pagos": int(row.get("qtd_pagos") or 0),
+        "qtd_pendentes": int(row.get("qtd_tickets") or 0) - int(row.get("qtd_pagos") or 0),
         "fluxo": fluxo,
         "fluxo_max": max((f["valor"] for f in fluxo), default=0) or 1,
     }
@@ -2169,3 +2432,141 @@ def ultimos_tickets(limite=15, inicio=None, fim=None):
         }
         for r in rows
     ]
+
+
+def dashboard_overview(inicio=None, fim=None):
+    """Busca os dados do dashboard em poucos round-trips ao banco."""
+    if not _pg_enabled():
+        stats = {
+            "clientes": _LEGACY_total_clientes(),
+            "animais": _LEGACY_total_animais(),
+            "consultas": _LEGACY_total_registros("consultas"),
+            "vacinas": _LEGACY_total_registros("vacinas"),
+            "exames": _LEGACY_total_registros("exames"),
+        }
+        return {
+            "stats": stats,
+            "fin": _LEGACY_resumo_financeiro(inicio, fim),
+            "ultimos": _LEGACY_ultimos_tickets(8, inicio, fim),
+        }
+
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                select
+                    (select count(*) from public.clients) as clientes,
+                    (select count(*) from public.animals) as animais,
+                    (select count(*) from public.consultations) as consultas,
+                    (select count(*) from public.vaccinations) as vacinas,
+                    (select count(*) from public.exams) as exames
+                """
+            )
+            stats_row = cur.fetchone() or {}
+
+            cur.execute(
+                """
+                select
+                    coalesce(sum(net_total), 0) as total_geral,
+                    coalesce(sum(net_total) filter (where lower(status) = 'paid'), 0) as total_recebido,
+                    count(*) as qtd_tickets,
+                    count(*) filter (where lower(status) = 'paid') as qtd_pagos
+                  from public.tickets
+                 where (%s::date is null or ticket_date >= %s::date)
+                   and (%s::date is null or ticket_date <= %s::date)
+                """,
+                (inicio, inicio, fim, fim),
+            )
+            fin_row = cur.fetchone() or {}
+
+            cur.execute(
+                """
+                with months as (
+                    select date_trunc('month', current_date) - (interval '1 month' * gs.i) as month_start
+                      from generate_series(11, 0, -1) as gs(i)
+                )
+                select
+                    extract(year from m.month_start)::int as ano,
+                    extract(month from m.month_start)::int as mes,
+                    coalesce(sum(t.net_total) filter (where lower(t.status) = 'paid'), 0) as valor
+                  from months m
+             left join public.tickets t
+                    on date_trunc('month', t.ticket_date) = m.month_start
+                   and lower(t.status) = 'paid'
+                 group by m.month_start
+                 order by m.month_start
+                """
+            )
+            fluxo_rows = cur.fetchall()
+
+            cur.execute(
+                """
+                select
+                    t.id,
+                    t.client_id,
+                    t.animal_id,
+                    t.ticket_date,
+                    t.net_total,
+                    t.status,
+                    t.created_at,
+                    c.name as client_name,
+                    a.name as animal_name
+                  from public.tickets t
+                  join public.clients c on c.id = t.client_id
+             left join public.animals a on a.id = t.animal_id
+                 where (%s::date is null or t.ticket_date >= %s::date)
+                   and (%s::date is null or t.ticket_date <= %s::date)
+                 order by t.ticket_date desc, t.created_at desc
+                 limit 8
+                """,
+                (inicio, inicio, fim, fim),
+            )
+            ultimos_rows = [dict(row) for row in cur.fetchall()]
+
+    nomes_mes = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+    fluxo = [
+        {"label": f"{nomes_mes[int(r['mes'])]}/{str(int(r['ano']))[2:]}", "valor": round(float(r.get("valor") or 0), 2)}
+        for r in fluxo_rows
+    ]
+    total_geral = float(fin_row.get("total_geral") or 0)
+    total_recebido = float(fin_row.get("total_recebido") or 0)
+    qtd_tickets = int(fin_row.get("qtd_tickets") or 0)
+    qtd_pagos = int(fin_row.get("qtd_pagos") or 0)
+    fin = {
+        "total_geral": round(total_geral, 2),
+        "total_recebido": round(total_recebido, 2),
+        "total_pendente": round(total_geral - total_recebido, 2),
+        "qtd_tickets": qtd_tickets,
+        "qtd_pagos": qtd_pagos,
+        "qtd_pendentes": qtd_tickets - qtd_pagos,
+        "fluxo": fluxo,
+        "fluxo_max": max((f["valor"] for f in fluxo), default=0) or 1,
+    }
+
+    ultimos = [
+        {
+            "id": str(r["id"]),
+            "data": r["ticket_date"].strftime("%d/%m/%Y") if r.get("ticket_date") else "",
+            "valor": float(r.get("net_total") or 0),
+            "pago": (r.get("status") or "").lower() == "paid",
+            "status": r.get("status") or "",
+            "cliente": r.get("client_name") or "",
+            "animal": r.get("animal_name") or "",
+            "numero": str(r["id"]),
+            "id_cliente": str(r["client_id"]),
+            "origem": "postgres",
+        }
+        for r in ultimos_rows
+    ]
+
+    return {
+        "stats": {
+            "clientes": int(stats_row.get("clientes") or 0),
+            "animais": int(stats_row.get("animais") or 0),
+            "consultas": int(stats_row.get("consultas") or 0),
+            "vacinas": int(stats_row.get("vacinas") or 0),
+            "exames": int(stats_row.get("exames") or 0),
+        },
+        "fin": fin,
+        "ultimos": ultimos,
+    }

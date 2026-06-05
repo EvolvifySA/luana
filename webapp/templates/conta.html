@@ -13,6 +13,9 @@
         </span>
         <h5 class="fw-bold mb-0">{{ usuario_logado.nome or usuario_logado.username }}</h5>
         <div class="text-muted small">@{{ usuario_logado.username }}</div>
+        {% if usuario_logado.email %}
+        <div class="text-muted small">{{ usuario_logado.email }}</div>
+        {% endif %}
         <span class="pill pill-blue mt-2 d-inline-flex">Veterinária</span>
       </div>
     </div>
