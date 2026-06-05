@@ -15,7 +15,20 @@
       "Bash(rm -f nuvemvet.db offline_app.py)",
       "Bash(pip install *)",
       "Bash(rm -f scraper.py baixar_pdfs.py puxar_animais_detalhes.py puxar_cadastro_clientes.py puxar_secoes_pendentes.py puxar_tickets.py puxar_vacinas.py)",
-      "Bash(cd \"c:\\\\Users\\\\leona\\\\Desktop\\\\luana\" && rm -rf __pycache__ scraper/__pycache__ webapp/__pycache__ 2>/dev/null; echo \"=== ESTRUTURA FINAL ===\" && find . -type f -not -path './dados_exportados/*' -not -path './.git/*' -not -path '*/__pycache__/*' -not -name '*.db' | sort && echo \"\" && echo \"=== git status ===\" && git status --short | head -20)"
+      "Bash(cd \"c:\\\\Users\\\\leona\\\\Desktop\\\\luana\" && rm -rf __pycache__ scraper/__pycache__ webapp/__pycache__ 2>/dev/null; echo \"=== ESTRUTURA FINAL ===\" && find . -type f -not -path './dados_exportados/*' -not -path './.git/*' -not -path '*/__pycache__/*' -not -name '*.db' | sort && echo \"\" && echo \"=== git status ===\" && git status --short | head -20)",
+      "Bash(grep -E \"\\\\.env$|\\\\.env\\\\.|dados_exportados|\\\\.db$\")",
+      "Bash(git ls-remote *)",
+      "Bash(timeout 8 python run.py)",
+      "PowerShell(Get-NetConnectionProfile)",
+      "PowerShell(\"--- Perfil de rede ativo ---\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('webapp/routes.py',encoding='utf-8'\\).read\\(\\)\\); print\\('routes.py OK'\\)\")",
+      "Bash(timeout 6 python run.py)",
+      "Bash(python -c \"import psycopg2; print\\('psycopg2 OK', psycopg2.__version__\\)\")",
+      "Bash(python -m pip show psycopg2-binary)",
+      "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('webapp/routes.py',encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\('webapp/db.py',encoding='utf-8'\\).read\\(\\)\\); print\\('Python OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('webapp/db.py',encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\('webapp/routes.py',encoding='utf-8'\\).read\\(\\)\\); print\\('Python OK \\(db.py + routes.py\\)'\\)\")",
+      "Bash(git add *)"
     ]
   }
 }

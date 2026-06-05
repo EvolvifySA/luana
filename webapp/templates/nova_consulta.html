@@ -29,6 +29,25 @@
   <input type="hidden" name="id_cliente" value="{{ id_cliente }}">
   <input type="hidden" name="id_animal" value="{{ id_animal }}">
 
+  {% if consultas_anteriores %}
+  <div class="card mb-3 border-primary">
+    <div class="card-body py-3">
+      <label class="form-label fw-semibold mb-1">
+        <i class="bi bi-arrow-repeat me-1 text-primary"></i>Reaproveitar consulta anterior
+      </label>
+      <select id="reusarConsulta" class="form-select">
+        <option value="">— Começar em branco —</option>
+        {% for c in consultas_anteriores %}
+        <option value="{{ loop.index0 }}">
+          {{ c.data or 'Sem data' }} · {{ c.descricao[:60] }}
+        </option>
+        {% endfor %}
+      </select>
+      <div class="form-text">Copia os dados clínicos de uma consulta já feita para este animal. Data, retorno e status você define agora.</div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card mb-3">
     <div class="card-header"><i class="bi bi-calendar2-week me-2 text-azul"></i>Dados da consulta</div>
     <div class="card-body">
@@ -184,4 +203,24 @@
     </div>
   </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Reaproveitar consulta anterior ──
+const CONSULTAS_ANT = {{ (consultas_anteriores or []) | tojson }};
+const selReusarCs = document.getElementById('reusarConsulta');
+if (selReusarCs) {
+  selReusarCs.addEventListener('change', function () {
+    if (this.value === '') return;
+    const c = CONSULTAS_ANT[parseInt(this.value, 10)];
+    if (!c || !c.valores) return;
+    const f = document.forms[0];
+    Object.entries(c.valores).forEach(([campo, valor]) => {
+      const el = f.elements[campo];
+      if (el) el.value = valor;
+    });
+  });
+}
+</script>
 {% endblock %}

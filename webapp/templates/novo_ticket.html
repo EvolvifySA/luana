@@ -19,6 +19,26 @@
 </div>
 
 <form method="post" id="ticketForm">
+
+  {% if tickets_anteriores %}
+  <div class="card mb-3 border-primary">
+    <div class="card-body py-3">
+      <label class="form-label fw-semibold mb-1">
+        <i class="bi bi-arrow-repeat me-1 text-primary"></i>Reaproveitar ticket anterior
+      </label>
+      <select id="reusarTicket" class="form-select">
+        <option value="">— Começar em branco —</option>
+        {% for t in tickets_anteriores %}
+        <option value="{{ loop.index0 }}">
+          {{ t.data or 'Sem data' }} · R$ {{ t.total or '0,00' }} · {{ t.itens|length }} item(ns)
+        </option>
+        {% endfor %}
+      </select>
+      <div class="form-text">Escolha um ticket já feito para este animal e os itens serão copiados (você pode editar depois).</div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card mb-3">
     <div class="card-body">
 
@@ -125,9 +145,10 @@ function fmt(n) {
   return n.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
-function addLinha(desc='', valor='') {
+function addLinha(desc='', valor='', tipo='clinica', qtd=1, desconto='0') {
   const tbody = document.getElementById('itensBody');
   const tr = document.createElement('tr');
+  const sel = (t) => ['clinica','petshop','produto'].includes(t) ? t : 'clinica';
   tr.innerHTML = `
     <td>
       <input list="listaServicos" name="descricao[]" class="form-control form-control-sm desc"
@@ -135,14 +156,14 @@ function addLinha(desc='', valor='') {
     </td>
     <td>
       <select name="tipo_svc[]" class="form-select form-select-sm">
-        <option value="clinica">Clínica</option>
-        <option value="petshop">Petshop</option>
-        <option value="produto">Produto</option>
+        <option value="clinica" ${sel(tipo)==='clinica'?'selected':''}>Clínica</option>
+        <option value="petshop" ${sel(tipo)==='petshop'?'selected':''}>Petshop</option>
+        <option value="produto" ${sel(tipo)==='produto'?'selected':''}>Produto</option>
       </select>
     </td>
-    <td><input type="number" name="qtd[]" class="form-control form-control-sm qtd" value="1" min="1"></td>
+    <td><input type="number" name="qtd[]" class="form-control form-control-sm qtd" value="${qtd || 1}" min="1"></td>
     <td><input type="text" name="valor[]" class="form-control form-control-sm valor" value="${valor}" placeholder="0,00"></td>
-    <td><input type="text" name="desconto[]" class="form-control form-control-sm desconto" value="0" placeholder="0,00"></td>
+    <td><input type="text" name="desconto[]" class="form-control form-control-sm desconto" value="${desconto || '0'}" placeholder="0,00"></td>
     <td class="subtotal text-end fw-semibold">R$ 0,00</td>
     <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove();calcular();"><i class="bi bi-trash"></i></button></td>
   `;
@@ -188,5 +209,21 @@ document.getElementById('dataTicket').value =
 
 // Começa com uma linha
 addLinha();
+
+// ── Reaproveitar ticket anterior ──
+const TICKETS_ANT = {{ (tickets_anteriores or []) | tojson }};
+const selReusarTk = document.getElementById('reusarTicket');
+if (selReusarTk) {
+  selReusarTk.addEventListener('change', function () {
+    if (this.value === '') return;
+    const t = TICKETS_ANT[parseInt(this.value, 10)];
+    if (!t || !t.itens) return;
+    document.getElementById('itensBody').innerHTML = '';  // limpa
+    t.itens.forEach(it =>
+      addLinha(it.descricao || '', it.valor || '', it.tipo || 'clinica', it.qtd || 1, it.desconto || '0'));
+    if (!t.itens.length) addLinha();
+    calcular();
+  });
+}
 </script>
 {% endblock %}

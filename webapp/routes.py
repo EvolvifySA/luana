@@ -7,7 +7,46 @@ Registradas via register_routes(app) pela factory em __init__.py.
 from flask import (render_template, request, redirect,
                    url_for, flash, send_file, session)
 from datetime import date, datetime
+import calendar
 import os
+
+_NOMES_MES = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+              "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+
+
+def _periodo_request():
+    """Lê os filtros 'mes' (AAAA-MM) e 'dia' (AAAA-MM-DD) da URL.
+
+    Retorna (inicio_iso, fim_iso, filtro) — filtro tem mes/dia/label para o template.
+    Padrão: mês atual.
+    """
+    hoje = date.today()
+    dia = (request.args.get("dia") or "").strip()
+    mes = (request.args.get("mes") or "").strip()
+
+    if dia:
+        try:
+            d = datetime.strptime(dia, "%Y-%m-%d").date()
+            return (d.isoformat(), d.isoformat(),
+                    {"mes": d.strftime("%Y-%m"), "dia": dia, "label": d.strftime("%d/%m/%Y")})
+        except ValueError:
+            pass
+
+    if mes:
+        try:
+            ano, m = (int(x) for x in mes.split("-")[:2])
+        except (ValueError, IndexError):
+            ano, m = hoje.year, hoje.month
+    else:
+        ano, m = hoje.year, hoje.month
+    if not (1 <= m <= 12):
+        ano, m = hoje.year, hoje.month
+
+    ultimo = calendar.monthrange(ano, m)[1]
+    inicio = date(ano, m, 1)
+    fim = date(ano, m, ultimo)
+    return (inicio.isoformat(), fim.isoformat(),
+            {"mes": f"{ano:04d}-{m:02d}", "dia": "", "label": f"{_NOMES_MES[m]}/{ano}"})
 
 import config
 from . import db
@@ -97,6 +136,44 @@ def _consulta_blank(cliente=None, animal=None):
         "status": "draft",
         "veterinario": session.get("usuario", {}).get("nome") or session.get("usuario", {}).get("username") or "",
         "crmv": "",
+    }
+
+
+# Campos clínicos que valem a pena copiar de uma consulta anterior
+# (não copiamos data, retorno nem status — esses começam "do zero").
+_CONSULTA_PREFILL_FIELDS = [f for f in CONSULTA_FIELDS
+                            if f not in ("consultation_date", "is_return",
+                                         "return_date", "status")]
+
+# Alguns campos do exame têm chave em PT no dicionário da consulta.
+_CONSULTA_PREFILL_FALLBACK = {
+    "heart_rate": "freq_cardiaca",
+    "respiratory_rate": "freq_respiratoria",
+    "lymph_nodes": "linfonodos",
+    "hydration": "hidratacao",
+    "ectoparasites": "ectoparasitas",
+    "abdominal_palpation": "palpacao_abdominal",
+    "cardiac_auscultation": "ausculta_cardiaca",
+    "pulmonary_auscultation": "ausculta_pulmonar",
+    "blood_pressure": "pressao_arterial",
+    "glycemia": "glicemia",
+    "weight": "peso",
+}
+
+
+def _consulta_prefill(full):
+    """Monta {campo_do_form: valor} a partir de uma consulta completa, para reaproveitar."""
+    valores = {}
+    for field in _CONSULTA_PREFILL_FIELDS:
+        valor = full.get(field)
+        if not valor and field in _CONSULTA_PREFILL_FALLBACK:
+            valor = full.get(_CONSULTA_PREFILL_FALLBACK[field])
+        valores[field] = valor or ""
+    return {
+        "id":        full.get("id", ""),
+        "data":      full.get("data_da_consulta", ""),
+        "descricao": (full.get("queixa_principal") or full.get("diagnostico") or "Consulta"),
+        "valores":   valores,
     }
 
 
@@ -190,6 +267,7 @@ def register_routes(app):
     # ─── Dashboard ────────────────────────────────────────────────────────────
     @app.route("/")
     def dashboard():
+        inicio, fim, filtro = _periodo_request()
         stats = {
             "clientes":  db.total_clientes(),
             "animais":   db.total_animais(),
@@ -198,14 +276,17 @@ def register_routes(app):
             "exames":    db.total_registros("exames"),
         }
         return render_template("dashboard.html", stats=stats,
-                               fin=db.resumo_financeiro(),
-                               ultimos=db.ultimos_tickets(8))
+                               fin=db.resumo_financeiro(inicio, fim),
+                               ultimos=db.ultimos_tickets(8, inicio, fim),
+                               filtro=filtro)
 
     @app.route("/financeiro")
     def financeiro():
+        inicio, fim, filtro = _periodo_request()
         return render_template("financeiro.html",
-                               fin=db.resumo_financeiro(),
-                               tickets=db.ultimos_tickets(30))
+                               fin=db.resumo_financeiro(inicio, fim),
+                               tickets=db.ultimos_tickets(500, inicio, fim),
+                               filtro=filtro)
 
     # ─── Atendimento rápido ───────────────────────────────────────────────────
     @app.route("/ticket/<ticket_id>/status", methods=["POST"])
@@ -282,6 +363,16 @@ def register_routes(app):
                                receitas_criadas=receitas_criadas,
                                tickets_imp=tickets_imp, tickets_novos=tickets_novos)
 
+    @app.route("/clientes/<id_cliente>/apagar", methods=["POST"])
+    def apagar_cliente(id_cliente):
+        try:
+            nome = db.apagar_cliente(id_cliente)
+            flash(f"Cliente '{nome}' apagado.", "success")
+            return redirect(url_for("clientes"))
+        except Exception as exc:
+            flash(str(exc), "danger")
+            return redirect(url_for("cliente", id_cliente=id_cliente))
+
     # ─── Animais ──────────────────────────────────────────────────────────────
     @app.route("/clientes/<id_cliente>/novo-animal", methods=["GET", "POST"])
     def novo_animal(id_cliente):
@@ -302,7 +393,7 @@ def register_routes(app):
                                id_cliente=id_cliente, form={})
 
     # ─── Registros médicos ────────────────────────────────────────────────────
-    def _render_consulta_form(consulta, cliente, animal):
+    def _render_consulta_form(consulta, cliente, animal, consultas_anteriores=None):
         return render_template(
             "nova_consulta.html",
             cliente=cliente,
@@ -310,6 +401,7 @@ def register_routes(app):
             id_cliente=cliente.get("id_cliente") if cliente else "",
             id_animal=animal.get("id_animal") if animal else "",
             consulta=consulta,
+            consultas_anteriores=consultas_anteriores or [],
         )
 
     @app.route("/clientes/<id_cliente>/animais/<id_animal>/consulta", methods=["GET", "POST"])
@@ -326,7 +418,14 @@ def register_routes(app):
             if dados["acao"] == "finalizar":
                 return redirect(url_for("consulta_pdf", consulta_id=consulta_id))
             return redirect(url_for("editar_consulta", consulta_id=consulta_id))
-        return _render_consulta_form(_consulta_blank(cliente, animal), cliente, animal)
+        # Consultas anteriores deste animal (completas) para reaproveitar
+        consultas_anteriores = []
+        for c in db.get_consultas_animal(id_cliente, id_animal):
+            full = db.get_consulta(c.get("id"))
+            if full:
+                consultas_anteriores.append(_consulta_prefill(full))
+        return _render_consulta_form(_consulta_blank(cliente, animal), cliente, animal,
+                                     consultas_anteriores)
 
     @app.route("/consultas/<consulta_id>", methods=["GET", "POST"])
     def editar_consulta(consulta_id):
@@ -460,9 +559,22 @@ def register_routes(app):
             ticket["id"] = saved_ticket_id or ticket["id"]
             return render_template("ticket.html", **pdf_context(ticket=ticket, clinica=config.CLINICA))
 
+        # Tickets anteriores deste animal (com itens) para reaproveitar
+        _, tickets_cli = db.get_tickets_cliente(id_cliente)
+        tickets_anteriores = []
+        for t in tickets_cli:
+            full = db.get_ticket(t.get("id"))
+            if full and str(full.get("id_animal")) == str(id_animal) and full.get("itens"):
+                tickets_anteriores.append({
+                    "id":    full.get("id"),
+                    "data":  full.get("data", ""),
+                    "total": full.get("total_liquido", ""),
+                    "itens": full.get("itens", []),
+                })
         return render_template("novo_ticket.html", cliente=cliente_dados, animal=animal,
                                id_cliente=id_cliente, id_animal=id_animal,
-                               servicos=db.get_servicos())
+                               servicos=db.get_servicos(),
+                               tickets_anteriores=tickets_anteriores)
 
     @app.route("/ticket/<ticket_id>")
     def ver_ticket(ticket_id):
@@ -507,8 +619,10 @@ def register_routes(app):
             dados["id"] = rid
             flash("Receita criada! Abrindo para impressão...", "success")
             return redirect(url_for("ver_receita", receita_id=rid))
+        receitas_anteriores = db.get_receitas_animal(id_cliente, id_animal)
         return render_template("nova_receita.html", cliente=cliente_dados,
-                               animal=animal, id_cliente=id_cliente, id_animal=id_animal)
+                               animal=animal, id_cliente=id_cliente, id_animal=id_animal,
+                               receitas_anteriores=receitas_anteriores)
 
     @app.route("/receita/<receita_id>")
     def ver_receita(receita_id):

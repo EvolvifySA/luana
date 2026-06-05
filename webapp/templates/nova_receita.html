@@ -17,6 +17,27 @@
 </div>
 
 <form method="post">
+
+  {% if receitas_anteriores %}
+  <div class="card mb-3 border-primary" style="max-width:800px">
+    <div class="card-body py-3">
+      <label class="form-label fw-semibold mb-1">
+        <i class="bi bi-arrow-repeat me-1 text-primary"></i>Reaproveitar receita anterior
+      </label>
+      <select id="reusarReceita" class="form-select">
+        <option value="">— Começar em branco —</option>
+        {% for r in receitas_anteriores %}
+        <option value="{{ loop.index0 }}">
+          {{ r.data or 'Sem data' }} ·
+          {{ (r.uso_oral or r.uso_topico or r.observacao or 'Receita').splitlines()[0][:60] }}
+        </option>
+        {% endfor %}
+      </select>
+      <div class="form-text">Escolha uma receita já feita para este animal e os campos abaixo serão preenchidos.</div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card mb-3" style="max-width:800px">
     <div class="card-body">
 
@@ -91,5 +112,23 @@ Furanil spray --- 1fr --- Passar na ferida 1x ao dia por 14 dias"></textarea>
 const h = new Date();
 document.getElementById('dataReceita').value =
   String(h.getDate()).padStart(2,'0')+'/'+String(h.getMonth()+1).padStart(2,'0')+'/'+h.getFullYear();
+
+// ── Reaproveitar receita anterior ──
+const RECEITAS_ANT = {{ (receitas_anteriores or []) | tojson }};
+const selReusar = document.getElementById('reusarReceita');
+if (selReusar) {
+  selReusar.addEventListener('change', function () {
+    if (this.value === '') return;
+    const r = RECEITAS_ANT[parseInt(this.value, 10)];
+    if (!r) return;
+    const f = document.forms[0];
+    if (r.tipo) { f.tipo.value = (r.tipo === 'especial' || r.tipo === 'special') ? 'especial' : 'simples'; }
+    if (r.veterinario) f.veterinario.value = r.veterinario;
+    if (r.crmv)        f.crmv.value = r.crmv;
+    f.uso_oral.value   = r.uso_oral || '';
+    f.uso_topico.value = r.uso_topico || '';
+    f.observacao.value = r.observacao || '';
+  });
+}
 </script>
 {% endblock %}

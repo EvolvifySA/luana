@@ -24,6 +24,12 @@
   </div>
   <div class="d-flex gap-2">
     <a href="{{ url_for('novo_animal', id_cliente=id_cliente) }}" class="btn btn-success"><i class="bi bi-plus-lg me-1"></i>Novo Animal</a>
+    {% if cliente %}
+    <form method="post" action="{{ url_for('apagar_cliente', id_cliente=id_cliente) }}" class="d-inline"
+          onsubmit="return confirm('Apagar este cliente e TODOS os seus animais e prontuários?\n\nTickets e receitas no histórico financeiro impedem a exclusão.\n\nEsta ação não pode ser desfeita.');">
+      <button type="submit" class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i>Apagar cliente</button>
+    </form>
+    {% endif %}
   </div>
 </div>
 

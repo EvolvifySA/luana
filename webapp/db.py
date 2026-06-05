@@ -685,6 +685,34 @@ def _parse_data(texto):
     return None
 
 
+def _data_para_iso(texto):
+    """Converte uma data (DD/MM/AAAA, DD-MM-AAAA ou já ISO) para 'AAAA-MM-DD'. None se falhar."""
+    if not texto:
+        return None
+    s = str(texto).strip()
+    m = re.search(r"(\d{2})[/-](\d{2})[/-](\d{4})", s)
+    if m:
+        return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+    m = re.search(r"(\d{4})-(\d{2})-(\d{2})", s)
+    if m:
+        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+    return None
+
+
+def _no_periodo(texto, inicio=None, fim=None):
+    """True se a data (texto) está dentro de [inicio, fim] (strings ISO 'AAAA-MM-DD')."""
+    if not inicio and not fim:
+        return True
+    iso = _data_para_iso(texto)
+    if not iso:
+        return False
+    if inicio and iso < inicio:
+        return False
+    if fim and iso > fim:
+        return False
+    return True
+
+
 def _todos_tickets():
     """
     Unifica tickets importados (tickets.csv) + criados no offline.
@@ -730,9 +758,10 @@ def _todos_tickets():
     return unificados
 
 
-def resumo_financeiro():
-    """Retorna métricas agregadas para o dashboard financeiro."""
-    tickets = _todos_tickets()
+def resumo_financeiro(inicio=None, fim=None):
+    """Retorna métricas agregadas para o dashboard financeiro (totais filtrados por período)."""
+    todos = _todos_tickets()
+    tickets = [t for t in todos if _no_periodo(t["data"], inicio, fim)]
 
     total_geral    = sum(t["valor"] for t in tickets)
     total_recebido = sum(t["valor"] for t in tickets if t["pago"])
@@ -753,7 +782,7 @@ def resumo_financeiro():
             ano -= 1
         meses[(ano, mes)] = 0.0
 
-    for t in tickets:
+    for t in todos:
         ym = _parse_data(t["data"])
         if ym and ym in meses and t["pago"]:
             meses[ym] += t["valor"]
@@ -778,9 +807,9 @@ def resumo_financeiro():
     }
 
 
-def ultimos_tickets(limite=15):
+def ultimos_tickets(limite=15, inicio=None, fim=None):
     """Retorna os tickets mais recentes (por data) para a tabela do dashboard."""
-    tickets = _todos_tickets()
+    tickets = [t for t in _todos_tickets() if _no_periodo(t["data"], inicio, fim)]
 
     def chave_data(t):
         ym = _parse_data(t["data"])
@@ -1886,7 +1915,8 @@ def get_tickets_cliente(id_cliente):
         return _LEGACY_get_tickets_cliente(id_cliente)
     client = _resolve_client_pg(id_cliente)
     if not client:
-        return _LEGACY_get_tickets_cliente(id_cliente)
+        # Supabase ligado: não cair pro CSV. Sem cliente resolvido = sem tickets.
+        return [], []
     rows = _pg_fetchall(
         """
         select *
@@ -1913,6 +1943,33 @@ def get_tickets_cliente(id_cliente):
             "origem": "postgres",
         })
     return [], tickets
+
+
+def apagar_cliente(id_cliente):
+    """Apaga um cliente e seus prontuários (animais, consultas, vacinas...).
+
+    Proteção: se houver tickets ou receitas no histórico financeiro, a exclusão
+    é bloqueada para não perder esses registros.
+    """
+    if not _pg_enabled():
+        raise ValueError("A exclusão de cliente só está disponível no banco Supabase.")
+    client = _resolve_client_pg(id_cliente)
+    if not client:
+        raise ValueError("Cliente não encontrado.")
+
+    n_tk = _pg_fetchone("select count(*) as n from public.tickets where client_id = %s", (client["id"],))
+    n_rx = _pg_fetchone("select count(*) as n from public.prescriptions where client_id = %s", (client["id"],))
+    if (n_tk and int(n_tk["n"]) > 0) or (n_rx and int(n_rx["n"]) > 0):
+        raise ValueError(
+            "Este cliente tem tickets e/ou receitas no histórico financeiro e "
+            "não pode ser apagado (proteção contra perda de dados)."
+        )
+
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("delete from public.clients where id = %s", (client["id"],))
+        conn.commit()
+    return client.get("name") or str(client["id"])
 
 
 def salvar_receita(dados):
@@ -2024,9 +2081,9 @@ def get_receitas_animal(id_cliente, id_animal):
     return [get_receita(r["id"]) for r in rows]
 
 
-def resumo_financeiro():
+def resumo_financeiro(inicio=None, fim=None):
     if not _pg_enabled():
-        return _LEGACY_resumo_financeiro()
+        return _LEGACY_resumo_financeiro(inicio, fim)
     rows = _pg_fetchall(
         """
         select ticket_date, net_total, status
@@ -2034,11 +2091,24 @@ def resumo_financeiro():
          order by ticket_date asc
         """
     )
-    total_geral = sum(float(r.get("net_total") or 0) for r in rows)
-    total_recebido = sum(float(r.get("net_total") or 0) for r in rows if (r.get("status") or "").lower() == "paid")
+
+    def _no_per(r):
+        dt = r.get("ticket_date")
+        if not dt:
+            return inicio is None and fim is None
+        iso = dt.isoformat()
+        if inicio and iso < inicio:
+            return False
+        if fim and iso > fim:
+            return False
+        return True
+
+    filtrados = [r for r in rows if _no_per(r)]
+    total_geral = sum(float(r.get("net_total") or 0) for r in filtrados)
+    total_recebido = sum(float(r.get("net_total") or 0) for r in filtrados if (r.get("status") or "").lower() == "paid")
     total_pendente = total_geral - total_recebido
-    qtd_tickets = len(rows)
-    qtd_pagos = sum(1 for r in rows if (r.get("status") or "").lower() == "paid")
+    qtd_tickets = len(filtrados)
+    qtd_pagos = sum(1 for r in filtrados if (r.get("status") or "").lower() == "paid")
     from collections import OrderedDict
     import datetime as _dt
     hoje = _dt.date.today()
@@ -2068,19 +2138,21 @@ def resumo_financeiro():
     }
 
 
-def ultimos_tickets(limite=15):
+def ultimos_tickets(limite=15, inicio=None, fim=None):
     if not _pg_enabled():
-        return _LEGACY_ultimos_tickets(limite=limite)
+        return _LEGACY_ultimos_tickets(limite=limite, inicio=inicio, fim=fim)
     rows = _pg_fetchall(
         """
         select t.*, c.name as client_name, a.name as animal_name
           from public.tickets t
           join public.clients c on c.id = t.client_id
      left join public.animals a on a.id = t.animal_id
+         where (%s::date is null or t.ticket_date >= %s::date)
+           and (%s::date is null or t.ticket_date <= %s::date)
          order by t.ticket_date desc, t.created_at desc
          limit %s
         """,
-        (limite,),
+        (inicio, inicio, fim, fim, limite),
     )
     return [
         {

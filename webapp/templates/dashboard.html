@@ -8,6 +8,23 @@
 
 {% block content %}
 
+<!-- Filtro de período -->
+<form class="card mb-3" method="get">
+  <div class="card-body py-2 d-flex flex-wrap align-items-end gap-2">
+    <div>
+      <label class="form-label mb-1 small text-muted">Mês</label>
+      <input type="month" name="mes" value="{{ filtro.mes }}" class="form-control form-control-sm" style="max-width:170px">
+    </div>
+    <div>
+      <label class="form-label mb-1 small text-muted">Dia (opcional)</label>
+      <input type="date" name="dia" value="{{ filtro.dia }}" class="form-control form-control-sm" style="max-width:170px">
+    </div>
+    <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-funnel me-1"></i>Filtrar</button>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-light-soft">Mês atual</a>
+    <span class="ms-auto text-muted small align-self-center">Período: <strong class="text-dark">{{ filtro.label }}</strong></span>
+  </div>
+</form>
+
 <!-- Cards de métricas -->
 <div class="row g-3 mb-3">
   <div class="col-md-3 col-6">

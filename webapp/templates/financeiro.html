@@ -8,6 +8,23 @@
 
 {% block content %}
 
+<!-- Filtro de período -->
+<form class="card mb-3" method="get">
+  <div class="card-body py-2 d-flex flex-wrap align-items-end gap-2">
+    <div>
+      <label class="form-label mb-1 small text-muted">Mês</label>
+      <input type="month" name="mes" value="{{ filtro.mes }}" class="form-control form-control-sm" style="max-width:170px">
+    </div>
+    <div>
+      <label class="form-label mb-1 small text-muted">Dia (opcional)</label>
+      <input type="date" name="dia" value="{{ filtro.dia }}" class="form-control form-control-sm" style="max-width:170px">
+    </div>
+    <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-funnel me-1"></i>Filtrar</button>
+    <a href="{{ url_for('financeiro') }}" class="btn btn-sm btn-light-soft">Mês atual</a>
+    <span class="ms-auto text-muted small align-self-center">Período: <strong class="text-dark">{{ filtro.label }}</strong></span>
+  </div>
+</form>
+
 <div class="row g-3 mb-3">
   <div class="col-md-3 col-6">
     <div class="stat">
@@ -107,10 +124,10 @@
         <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Animal</th><th class="text-end">Valor</th><th>Status</th><th>Origem</th></tr></thead>
         <tbody>
           {% for t in tickets %}
-          <tr>
+          <tr {% if t.id %}onclick="window.location='{{ url_for('ver_ticket', ticket_id=t.id) }}'" style="cursor:pointer"{% endif %} title="{% if t.id %}Clique para abrir o ticket{% endif %}">
             <td>
               {% if t.id %}
-              <a href="{{ url_for('ticket_pdf', ticket_id=t.id) }}" target="_blank" class="fw-semibold text-azul">{{ t.numero or '—' }}</a>
+              <a href="{{ url_for('ticket_pdf', ticket_id=t.id) }}" target="_blank" onclick="event.stopPropagation()" class="fw-semibold text-azul">{{ t.numero or '—' }}</a>
               {% else %}
               <span class="fw-semibold text-azul">{{ t.numero or '—' }}</span>
               {% endif %}
@@ -124,7 +141,7 @@
                 {% if t.pago %}<span class="pill pill-green"><i class="bi bi-check"></i>Pago</span>
                 {% else %}<span class="pill pill-amber"><i class="bi bi-clock"></i>Pendente</span>{% endif %}
                 {% if t.id %}
-                <form method="post" action="{{ url_for('ticket_status', ticket_id=t.id) }}" class="d-inline">
+                <form method="post" action="{{ url_for('ticket_status', ticket_id=t.id) }}" class="d-inline" onclick="event.stopPropagation()">
                   {% if t.pago %}
                   <input type="hidden" name="status" value="pending">
                   <button class="btn btn-xs btn-light-soft" type="submit"><i class="bi bi-arrow-repeat me-1"></i>Marcar pendente</button>

@@ -196,6 +196,45 @@
     .input-ico .form-control { padding-left: 2.4rem; }
     .sec-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: #94a3b8; font-weight: 700; display: flex; align-items: center; gap: .45rem; margin-bottom: .9rem; }
     .sec-label::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+    /* ───── Botão hambúrguer (só mobile) ───── */
+    .menu-toggle {
+      display: none; width: 38px; height: 38px; border-radius: 10px; background: #f1f5f9;
+      border: none; color: #475569; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0;
+    }
+    .menu-toggle:hover { background: #e2e8f0; }
+    .sidebar-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(10,34,64,.45);
+      z-index: 109; opacity: 0; transition: opacity .2s;
+    }
+
+    /* ───── Responsivo (celular / tablet) ───── */
+    @media (max-width: 768px) {
+      .sidebar {
+        transform: translateX(-100%);
+        transition: transform .25s ease;
+        z-index: 110; width: 260px;
+      }
+      .sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(10,34,64,.35); }
+      .sidebar-backdrop.show { display: block; opacity: 1; }
+
+      .topbar { margin-left: 0; padding: .6rem .9rem; }
+      .main   { margin-left: 0; padding: 1rem .9rem; }
+      .menu-toggle { display: inline-flex; }
+
+      .topbar .search { flex: 1 1 auto; min-width: 0; }
+      .topbar .pg-tit { font-size: .98rem; }
+      .topbar .pg-sub { display: none; }
+
+      .table { font-size: .8rem; }
+      .table th, .table td { padding: .55rem .6rem; }
+      .stat .num { font-size: 1.5rem; }
+    }
+
+    /* telas bem pequenas: esconde o campo de busca do topo */
+    @media (max-width: 480px) {
+      .topbar .search { display: none; }
+    }
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -257,10 +296,15 @@
   {% endif %}
 </nav>
 
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar(false)"></div>
+
 <div class="topbar">
-  <div>
-    <div class="pg-tit">{% block topbar_title %}{% endblock %}</div>
-    <div class="pg-sub">{% block topbar_sub %}{% endblock %}</div>
+  <div class="d-flex align-items-center gap-2">
+    <button class="menu-toggle" type="button" title="Menu" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+    <div>
+      <div class="pg-tit">{% block topbar_title %}{% endblock %}</div>
+      <div class="pg-sub">{% block topbar_sub %}{% endblock %}</div>
+    </div>
   </div>
   <div class="d-flex align-items-center gap-2">
     <form class="search" action="{{ url_for('clientes') }}" method="get">
@@ -286,6 +330,21 @@
 </div>
 
 <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
+<script>
+  function toggleSidebar(force) {
+    const sb = document.querySelector('.sidebar');
+    const bd = document.getElementById('sidebarBackdrop');
+    const open = (typeof force === 'boolean') ? force : !sb.classList.contains('open');
+    sb.classList.toggle('open', open);
+    bd.classList.toggle('show', open);
+  }
+  // fecha o menu ao clicar num link (no celular)
+  document.querySelectorAll('.sidebar .nav-link, .sidebar .side-foot a').forEach(function (a) {
+    a.addEventListener('click', function () {
+      if (window.matchMedia('(max-width: 768px)').matches) toggleSidebar(false);
+    });
+  });
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
