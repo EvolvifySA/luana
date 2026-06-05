@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Receitas Personalizadas{% endblock %}
+{% block topbar_title %}Receitas Personalizadas{% endblock %}
+{% block topbar_sub %}Modelos salvos para reusar em qualquer cliente{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="fw-bold mb-0">
+    <i class="bi bi-star-fill text-warning me-1"></i>Receitas Personalizadas
+    <span class="text-muted fw-normal">({{ templates|length }})</span>
+  </h4>
+  <a href="{{ url_for('nova_receita_personalizada') }}" class="btn btn-success">
+    <i class="bi bi-plus-lg me-1"></i>Nova receita personalizada
+  </a>
+</div>
+
+<div class="alert alert-info" style="border-radius:12px;border:none">
+  <i class="bi bi-info-circle me-1"></i>
+  Estes são seus modelos salvos. Para <strong>usar</strong> um deles, abra
+  <strong>Emitir Receita</strong> de um cliente e selecione em <strong>"Usar receita personalizada"</strong>.
+</div>
+
+{% if templates %}
+<div class="row g-3">
+  {% for t in templates %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold text-truncate" title="{{ t.nome }}">
+          <i class="bi bi-capsule me-1 text-success"></i>{{ t.nome }}
+        </span>
+        {% if t.tipo == 'especial' %}
+        <span class="pill pill-amber">Especial</span>
+        {% else %}
+        <span class="pill pill-blue">Simples</span>
+        {% endif %}
+      </div>
+      <div class="card-body py-2" style="font-size:.84rem">
+        {% if t.uso_oral %}
+        <div class="mb-2">
+          <div class="sec-label" style="margin-bottom:.3rem"><i class="bi bi-capsule"></i>Uso Oral</div>
+          <div style="white-space:pre-line;color:#475569">{{ t.uso_oral }}</div>
+        </div>
+        {% endif %}
+        {% if t.uso_topico %}
+        <div class="mb-2">
+          <div class="sec-label" style="margin-bottom:.3rem"><i class="bi bi-droplet"></i>Uso Tópico</div>
+          <div style="white-space:pre-line;color:#475569">{{ t.uso_topico }}</div>
+        </div>
+        {% endif %}
+        {% if t.observacao %}
+        <div class="text-muted" style="font-size:.78rem"><b>Obs:</b> {{ t.observacao }}</div>
+        {% endif %}
+        {% if not t.uso_oral and not t.uso_topico and not t.observacao %}
+        <div class="text-muted">Sem itens.</div>
+        {% endif %}
+      </div>
+      <div class="card-footer bg-white d-flex justify-content-end gap-2" style="border-top:1px solid var(--line)">
+        <a href="{{ url_for('editar_receita_personalizada', template_id=t.id) }}"
+           class="btn btn-xs btn-outline-primary"><i class="bi bi-pencil me-1"></i>Editar</a>
+        <form method="post" action="{{ url_for('apagar_receita_personalizada', template_id=t.id) }}"
+              onsubmit="return confirm('Apagar a receita personalizada?');">
+          <button type="submit" class="btn btn-xs btn-outline-danger"><i class="bi bi-trash me-1"></i>Apagar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state py-5">
+    <i class="bi bi-star"></i>
+    Nenhuma receita personalizada salva ainda.
+    <div class="mt-2 text-muted" style="font-size:.85rem">
+      Crie uma receita e marque <strong>"Salvar como receita personalizada?"</strong> para ela aparecer aqui.
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

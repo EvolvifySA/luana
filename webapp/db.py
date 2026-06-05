@@ -1613,6 +1613,43 @@ def inserir_cliente(dados):
     return new_id
 
 
+def atualizar_cliente(id_cliente, dados):
+    """Atualiza os dados de um cliente existente (apenas Supabase)."""
+    if not _pg_enabled():
+        raise ValueError("A edição de cliente só está disponível no banco Supabase.")
+    client = _resolve_client_pg(id_cliente)
+    if not client:
+        raise ValueError("Cliente não encontrado.")
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                update public.clients set
+                    name = %s, cpf = %s, mobile = %s, phone = %s, email = %s,
+                    address = %s, city = %s, neighborhood = %s, state = %s,
+                    zip_code = %s, birth_date = %s, notes = %s
+                where id = %s
+                """,
+                (
+                    dados.get("nome"),
+                    dados.get("cpf"),
+                    dados.get("celular"),
+                    dados.get("telefone"),
+                    dados.get("email"),
+                    dados.get("endereco"),
+                    dados.get("cidade"),
+                    dados.get("bairro"),
+                    dados.get("estado"),
+                    dados.get("cep") or dados.get("zip_code"),
+                    dados.get("nascimento") or None,
+                    dados.get("observacao"),
+                    client["id"],
+                ),
+            )
+        conn.commit()
+    return str(client["id"])
+
+
 def inserir_animal(dados):
     if not _pg_enabled():
         return _LEGACY_inserir_animal(dados)
@@ -2050,6 +2087,9 @@ def get_servicos():
          order by lower(name)
         """
     )
+    # Supabase ainda sem serviços/produtos migrados → usa o catálogo do servicos.csv.
+    if not rows:
+        return _LEGACY_get_servicos()
     return [{"nome": r["name"], "valor": f'{float(r["price"]):.2f}'.replace(".", ","), "tipo": r["service_type"]} for r in rows]
 
 
@@ -2347,6 +2387,164 @@ def get_receitas_animal(id_cliente, id_animal):
         (client["id"], animal["id"] if animal else None, animal["id"] if animal else None),
     )
     return [get_receita(r["id"]) for r in rows]
+
+
+# ─── Receitas personalizadas (modelos reutilizáveis em qualquer cliente) ──────
+
+def _init_receita_templates_local(conn):
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS receita_templates (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome        TEXT NOT NULL,
+            tipo        TEXT,
+            veterinario TEXT,
+            crmv        TEXT,
+            uso_oral    TEXT,
+            uso_topico  TEXT,
+            observacao  TEXT,
+            criado_em   TEXT DEFAULT (datetime('now','localtime'))
+        )
+    """)
+    conn.commit()
+
+
+def _init_receita_templates_pg():
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                create table if not exists public.prescription_templates (
+                    id uuid primary key default gen_random_uuid(),
+                    name text not null,
+                    prescription_type text default 'simples',
+                    veterinarian text,
+                    crmv text,
+                    uso_oral text,
+                    uso_topico text,
+                    notes text,
+                    created_at timestamptz not null default now()
+                )
+            """)
+        conn.commit()
+
+
+def salvar_receita_template(nome, dados):
+    """Salva uma receita como modelo reutilizável (vale para qualquer cliente)."""
+    nome = (nome or "").strip()
+    if not nome:
+        raise ValueError("Dê um nome para a receita personalizada.")
+    if not _pg_enabled():
+        conn = _get_novos_db()
+        _init_receita_templates_local(conn)
+        cur = conn.execute(
+            """INSERT INTO receita_templates (nome, tipo, veterinario, crmv, uso_oral, uso_topico, observacao)
+               VALUES (?,?,?,?,?,?,?)""",
+            (nome, dados.get("tipo"), dados.get("veterinario"), dados.get("crmv"),
+             dados.get("uso_oral"), dados.get("uso_topico"), dados.get("observacao")),
+        )
+        conn.commit()
+        new_id = cur.lastrowid
+        conn.close()
+        return str(new_id)
+    _init_receita_templates_pg()
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """insert into public.prescription_templates
+                     (name, prescription_type, veterinarian, crmv, uso_oral, uso_topico, notes)
+                   values (%s,%s,%s,%s,%s,%s,%s) returning id""",
+                (nome, dados.get("tipo"), dados.get("veterinario"), dados.get("crmv"),
+                 dados.get("uso_oral"), dados.get("uso_topico"), dados.get("observacao")),
+            )
+            tid = str(cur.fetchone()["id"])
+        conn.commit()
+    return tid
+
+
+def get_receita_templates():
+    """Lista todas as receitas personalizadas salvas."""
+    if not _pg_enabled():
+        conn = _get_novos_db()
+        _init_receita_templates_local(conn)
+        rows = conn.execute("SELECT * FROM receita_templates ORDER BY nome").fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    _init_receita_templates_pg()
+    rows = _pg_fetchall("select * from public.prescription_templates order by lower(name)")
+    return [{
+        "id": str(r["id"]), "nome": r.get("name") or "",
+        "tipo": r.get("prescription_type") or "simples",
+        "veterinario": r.get("veterinarian") or "", "crmv": r.get("crmv") or "",
+        "uso_oral": r.get("uso_oral") or "", "uso_topico": r.get("uso_topico") or "",
+        "observacao": r.get("notes") or "",
+    } for r in rows]
+
+
+def get_receita_template(template_id):
+    """Retorna uma receita personalizada pelo id (ou None)."""
+    if not _pg_enabled():
+        conn = _get_novos_db()
+        _init_receita_templates_local(conn)
+        row = conn.execute("SELECT * FROM receita_templates WHERE id = ?", (str(template_id),)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+    _init_receita_templates_pg()
+    r = _pg_fetchone("select * from public.prescription_templates where id::text = %s", (str(template_id),))
+    if not r:
+        return None
+    return {
+        "id": str(r["id"]), "nome": r.get("name") or "",
+        "tipo": r.get("prescription_type") or "simples",
+        "veterinario": r.get("veterinarian") or "", "crmv": r.get("crmv") or "",
+        "uso_oral": r.get("uso_oral") or "", "uso_topico": r.get("uso_topico") or "",
+        "observacao": r.get("notes") or "",
+    }
+
+
+def atualizar_receita_template(template_id, dados):
+    """Atualiza uma receita personalizada existente."""
+    nome = (dados.get("nome") or "").strip()
+    if not nome:
+        raise ValueError("Dê um nome para a receita personalizada.")
+    if not _pg_enabled():
+        conn = _get_novos_db()
+        _init_receita_templates_local(conn)
+        conn.execute(
+            """UPDATE receita_templates SET nome=?, tipo=?, veterinario=?, crmv=?,
+                   uso_oral=?, uso_topico=?, observacao=? WHERE id=?""",
+            (nome, dados.get("tipo"), dados.get("veterinario"), dados.get("crmv"),
+             dados.get("uso_oral"), dados.get("uso_topico"), dados.get("observacao"), str(template_id)),
+        )
+        conn.commit()
+        conn.close()
+        return str(template_id)
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """update public.prescription_templates set
+                       name=%s, prescription_type=%s, veterinarian=%s, crmv=%s,
+                       uso_oral=%s, uso_topico=%s, notes=%s
+                   where id::text = %s""",
+                (nome, dados.get("tipo"), dados.get("veterinario"), dados.get("crmv"),
+                 dados.get("uso_oral"), dados.get("uso_topico"), dados.get("observacao"), str(template_id)),
+            )
+        conn.commit()
+    return str(template_id)
+
+
+def apagar_receita_template(template_id):
+    """Remove uma receita personalizada (modelo)."""
+    if not _pg_enabled():
+        conn = _get_novos_db()
+        _init_receita_templates_local(conn)
+        conn.execute("DELETE FROM receita_templates WHERE id = ?", (str(template_id),))
+        conn.commit()
+        conn.close()
+        return True
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("delete from public.prescription_templates where id::text = %s", (str(template_id),))
+        conn.commit()
+    return True
 
 
 def resumo_financeiro(inicio=None, fim=None):

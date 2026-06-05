@@ -53,6 +53,12 @@
   </span>
 </div>
 
+{% if logo_src %}
+<div style="text-align:center;margin-bottom:8px;">
+  <img src="{{ logo_src }}" alt="Logo" style="max-height:90px;max-width:220px;object-fit:contain;">
+</div>
+{% endif %}
+
 {% if receita.tipo == 'especial' %}
 <div class="emitente">
   <div class="left">

@@ -134,8 +134,8 @@ def _consulta_blank(cliente=None, animal=None):
         "is_retorno": False,
         "data_retorno": "",
         "status": "draft",
-        "veterinario": session.get("usuario", {}).get("nome") or session.get("usuario", {}).get("username") or "",
-        "crmv": "",
+        "veterinario": "Luana Maria Feitosa Barroso",
+        "crmv": "CRMV-PB 02956",
     }
 
 
@@ -394,6 +394,31 @@ def register_routes(app):
             return redirect(url_for("cliente", id_cliente=f"new_{id_novo}"))
         return render_template("novo_cliente.html", form={})
 
+    @app.route("/clientes/<id_cliente>/editar", methods=["GET", "POST"])
+    def editar_cliente(id_cliente):
+        if request.method == "POST":
+            dados = {k: request.form.get(k, "").strip()
+                     for k in ("nome", "cpf", "celular", "telefone",
+                               "email", "endereco", "bairro", "cidade", "estado", "cep", "nascimento", "observacao")}
+            if not dados["nome"]:
+                flash("Nome é obrigatório.", "danger")
+                return render_template("novo_cliente.html", form=dados,
+                                       editando=True, id_cliente=id_cliente)
+            try:
+                db.atualizar_cliente(id_cliente, dados)
+                flash("Cliente atualizado!", "success")
+                return redirect(url_for("cliente", id_cliente=id_cliente))
+            except Exception as exc:
+                flash(str(exc), "danger")
+                return render_template("novo_cliente.html", form=dados,
+                                       editando=True, id_cliente=id_cliente)
+        cliente_dados = db.get_cliente(id_cliente)
+        if not cliente_dados:
+            flash("Cliente não encontrado.", "warning")
+            return redirect(url_for("clientes"))
+        return render_template("novo_cliente.html", form=cliente_dados,
+                               editando=True, id_cliente=id_cliente)
+
     @app.route("/clientes/<id_cliente>")
     def cliente(id_cliente):
         secao     = request.args.get("secao", "")
@@ -470,7 +495,7 @@ def register_routes(app):
             consulta_id = db.salvar_consulta(dados)
             flash("Consulta salva com sucesso!", "success")
             if dados["acao"] == "finalizar":
-                return redirect(url_for("consulta_pdf", consulta_id=consulta_id))
+                return redirect(url_for("ver_consulta", consulta_id=consulta_id))
             return redirect(url_for("editar_consulta", consulta_id=consulta_id))
         # Consultas anteriores deste animal (completas) para reaproveitar
         consultas_anteriores = []
@@ -497,11 +522,30 @@ def register_routes(app):
             consulta_id = db.salvar_consulta(dados)
             flash("Consulta atualizada!", "success")
             if dados["acao"] == "finalizar":
-                return redirect(url_for("consulta_pdf", consulta_id=consulta_id))
+                return redirect(url_for("ver_consulta", consulta_id=consulta_id))
             if dados["acao"] == "cancelar":
                 return redirect(url_for("cliente", id_cliente=dados["id_cliente"], animal=dados["id_animal"], secao="consultas"))
             return redirect(url_for("editar_consulta", consulta_id=consulta_id))
         return _render_consulta_form(consulta, cliente, animal)
+
+    @app.route("/consultas/<consulta_id>/ver")
+    def ver_consulta(consulta_id):
+        consulta = db.get_consulta(consulta_id)
+        if not consulta:
+            flash("Consulta não encontrada.", "warning")
+            return redirect(url_for("dashboard"))
+        cliente = consulta.get("cliente") or db.get_cliente(consulta.get("id_cliente"))
+        animal = consulta.get("animal") or {}
+        return render_template(
+            "consulta_print.html",
+            **pdf_context(
+                consulta=consulta,
+                cliente=cliente,
+                animal=animal,
+                animal_idade=_idade_texto(animal.get("nascimento")),
+                clinica=config.CLINICA,
+            ),
+        )
 
     @app.route("/consultas/<consulta_id>/pdf")
     def consulta_pdf(consulta_id):
@@ -671,12 +715,77 @@ def register_routes(app):
             }
             rid = db.salvar_receita(dados)
             dados["id"] = rid
+            # Salvar como receita personalizada (modelo reutilizável)?
+            if request.form.get("salvar_template"):
+                nome_tpl = request.form.get("template_nome", "").strip()
+                try:
+                    db.salvar_receita_template(nome_tpl, dados)
+                    flash(f"Receita personalizada '{nome_tpl}' salva!", "success")
+                except Exception as exc:
+                    flash(f"Receita criada, mas não consegui salvar o modelo: {exc}", "warning")
             flash("Receita criada! Abrindo para impressão...", "success")
             return redirect(url_for("ver_receita", receita_id=rid))
         receitas_anteriores = db.get_receitas_animal(id_cliente, id_animal)
+        receitas_personalizadas = db.get_receita_templates()
         return render_template("nova_receita.html", cliente=cliente_dados,
                                animal=animal, id_cliente=id_cliente, id_animal=id_animal,
-                               receitas_anteriores=receitas_anteriores)
+                               receitas_anteriores=receitas_anteriores,
+                               receitas_personalizadas=receitas_personalizadas)
+
+    @app.route("/receitas-personalizadas")
+    def receitas_personalizadas():
+        return render_template("receitas_personalizadas.html",
+                               templates=db.get_receita_templates())
+
+    def _receita_template_form_data():
+        return {k: request.form.get(k, "").strip()
+                for k in ("nome", "tipo", "veterinario", "crmv",
+                          "uso_oral", "uso_topico", "observacao")}
+
+    @app.route("/receitas-personalizadas/nova", methods=["GET", "POST"])
+    def nova_receita_personalizada():
+        if request.method == "POST":
+            dados = _receita_template_form_data()
+            try:
+                db.salvar_receita_template(dados.get("nome"), dados)
+                flash("Receita personalizada criada!", "success")
+                return redirect(url_for("receitas_personalizadas"))
+            except Exception as exc:
+                flash(str(exc), "danger")
+                return render_template("receita_personalizada_form.html",
+                                       form=dados, editando=False)
+        return render_template("receita_personalizada_form.html",
+                               form={"veterinario": "Luana Maria Feitosa Barroso",
+                                     "crmv": "CRMV-PB 02956", "tipo": "simples"},
+                               editando=False)
+
+    @app.route("/receitas-personalizadas/<template_id>/editar", methods=["GET", "POST"])
+    def editar_receita_personalizada(template_id):
+        if request.method == "POST":
+            dados = _receita_template_form_data()
+            try:
+                db.atualizar_receita_template(template_id, dados)
+                flash("Receita personalizada atualizada!", "success")
+                return redirect(url_for("receitas_personalizadas"))
+            except Exception as exc:
+                flash(str(exc), "danger")
+                return render_template("receita_personalizada_form.html",
+                                       form=dados, editando=True, template_id=template_id)
+        tpl = db.get_receita_template(template_id)
+        if not tpl:
+            flash("Receita personalizada não encontrada.", "warning")
+            return redirect(url_for("receitas_personalizadas"))
+        return render_template("receita_personalizada_form.html",
+                               form=tpl, editando=True, template_id=template_id)
+
+    @app.route("/receitas-personalizadas/<template_id>/apagar", methods=["POST"])
+    def apagar_receita_personalizada(template_id):
+        try:
+            db.apagar_receita_template(template_id)
+            flash("Receita personalizada apagada.", "success")
+        except Exception as exc:
+            flash(f"Não foi possível apagar: {exc}", "danger")
+        return redirect(url_for("receitas_personalizadas"))
 
     @app.route("/receita/<receita_id>")
     def ver_receita(receita_id):

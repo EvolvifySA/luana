@@ -64,7 +64,6 @@
     </div>
 
     <h1>A gestão da sua clínica veterinária, sem complicação.</h1>
-    <p class="lead">Clientes, animais, atendimentos e financeiro em um só lugar — rápido, organizado e sempre à mão.</p>
 
     <div class="feat"><div class="fi"><i class="bi bi-clipboard2-pulse"></i></div><span>Prontuário completo de cada animal</span></div>
     <div class="feat"><div class="fi"><i class="bi bi-receipt"></i></div><span>Tickets e receitas em segundos</span></div>
@@ -115,5 +114,7 @@
       <div class="foot-info">{{ APP_NOME }} <strong>{{ APP_MARCA }}</strong> · v2.0 · Suporte: (83) 92003-7703</div>
     </div>
   </div>
+{% set suporte_modo = 'entrada' %}
+{% include "_suporte.html" %}
 </body>
 </html>

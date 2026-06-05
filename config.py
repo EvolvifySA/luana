@@ -50,7 +50,7 @@ SUPABASE_STORAGE_BUCKET = _get("SUPABASE_STORAGE_BUCKET", "")
 DEFAULT_ADMIN_EMAIL = _get("DEFAULT_ADMIN_EMAIL", "")
 
 APP_NOME  = "Sistema Vet"
-APP_MARCA = "Evolvify"
+APP_MARCA = "Evolvify Vet"
 
 CLINICA = {
     "nome":     _get("CLINICA_NOME", "Luana Feitosa — Atendimento Domiciliar"),

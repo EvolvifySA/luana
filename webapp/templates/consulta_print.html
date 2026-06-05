@@ -91,7 +91,7 @@
 <div class="box">
   <div class="legend">Dados da Consulta</div>
   <div class="kv">
-    <p><b>Data:</b> {{ consulta.data_da_consulta or '—' }} &nbsp; <b>Realizado por:</b> {{ consulta.veterinario or '—' }} &nbsp; <b>CRMV:</b> {{ consulta.crmv or '—' }}</p>
+    <p><b>Data:</b> {{ consulta.data_da_consulta or '—' }}</p>
     <p><b>É retorno?</b> {{ 'Sim' if consulta.is_retorno else 'Não' }}{% if consulta.data_retorno %} &nbsp; <b>Retorno:</b> {{ consulta.data_retorno }}{% endif %}</p>
   </div>
 </div>
@@ -183,6 +183,13 @@ Peso: {{ consulta.peso or '—' }}
 <div class="sec">
   <h3>Observações:</h3>
   <div class="txt">{{ consulta.observacoes or '—' }}</div>
+</div>
+
+<div style="margin-top:60px;text-align:center;">
+  <div style="border-top:1px solid #333;width:280px;margin:0 auto 4px;"></div>
+  <p style="font-size:13px;font-weight:bold;margin:0;">{{ consulta.veterinario or '—' }}</p>
+  <p style="font-size:12px;color:#333;margin:0;">{% if consulta.crmv %}{{ consulta.crmv }}{% endif %}</p>
+  <p style="font-size:12px;color:#333;margin:2px 0 0;">Médica Veterinária</p>
 </div>
 
 </body>

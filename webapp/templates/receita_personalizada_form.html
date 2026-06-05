@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar' if editando else 'Nova' }} Receita Personalizada{% endblock %}
+{% block topbar_title %}{{ 'Editar' if editando else 'Nova' }} Receita Personalizada{% endblock %}
+{% block topbar_sub %}Modelo reutilizável em qualquer cliente{% endblock %}
+
+{% block content %}
+<form method="post"
+      action="{{ url_for('editar_receita_personalizada', template_id=template_id) if editando else url_for('nova_receita_personalizada') }}"
+      style="max-width:800px">
+  <div class="card mb-3">
+    <div class="card-header">
+      <i class="bi bi-star-fill text-warning me-2"></i>{{ 'Editar' if editando else 'Nova' }} Receita Personalizada
+    </div>
+    <div class="card-body">
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-7">
+          <label class="form-label fw-semibold">Nome do modelo <span class="text-danger">*</span></label>
+          <input type="text" name="nome" class="form-control" value="{{ form.get('nome','') }}"
+                 placeholder="Ex.: Vermífugo padrão, Pós-cirúrgico gato..." maxlength="80" required>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label fw-semibold">Tipo de Receituário</label>
+          <select name="tipo" class="form-select">
+            <option value="simples" {% if form.get('tipo') != 'especial' %}selected{% endif %}>Receituário Simples</option>
+            <option value="especial" {% if form.get('tipo') == 'especial' %}selected{% endif %}>Receituário de Controle Especial</option>
+          </select>
+        </div>
+        <div class="col-md-7">
+          <label class="form-label">Veterinário(a)</label>
+          <input type="text" name="veterinario" class="form-control" value="{{ form.get('veterinario','Luana Maria Feitosa Barroso') }}">
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">CRMV</label>
+          <input type="text" name="crmv" class="form-control" value="{{ form.get('crmv','CRMV-PB 02956') }}">
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold"><i class="bi bi-capsule me-1"></i>Uso Oral</label>
+        <textarea name="uso_oral" class="form-control" rows="5"
+          placeholder="Um medicamento por linha. Ex:
+Petsporin 150mg --- 1cx --- Dar 1 comprimido pela manhã durante 10 dias">{{ form.get('uso_oral','') }}</textarea>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold"><i class="bi bi-droplet me-1"></i>Uso Tópico</label>
+        <textarea name="uso_topico" class="form-control" rows="4"
+          placeholder="Um medicamento por linha.">{{ form.get('uso_topico','') }}</textarea>
+      </div>
+
+      <div class="mb-1">
+        <label class="form-label">Observações / Orientações gerais</label>
+        <textarea name="observacao" class="form-control" rows="2">{{ form.get('observacao','') }}</textarea>
+      </div>
+
+    </div>
+    <div class="card-footer bg-white d-flex justify-content-end gap-2 py-3" style="border-top:1px solid var(--line)">
+      <a href="{{ url_for('receitas_personalizadas') }}" class="btn btn-light-soft">Cancelar</a>
+      <button type="submit" class="btn btn-primary px-4">
+        <i class="bi bi-check-lg me-1"></i>{{ 'Salvar alterações' if editando else 'Criar modelo' }}
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}

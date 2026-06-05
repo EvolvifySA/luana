@@ -38,6 +38,23 @@
   </div>
   {% endif %}
 
+  {% if receitas_personalizadas %}
+  <div class="card mb-3 border-success" style="max-width:800px">
+    <div class="card-body py-3">
+      <label class="form-label fw-semibold mb-1">
+        <i class="bi bi-star-fill me-1 text-success"></i>Usar receita personalizada
+      </label>
+      <select id="usarTemplate" class="form-select">
+        <option value="">— Não usar —</option>
+        {% for t in receitas_personalizadas %}
+        <option value="{{ loop.index0 }}">{{ t.nome }}</option>
+        {% endfor %}
+      </select>
+      <div class="form-text">Seus modelos salvos — servem para qualquer cliente.</div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card mb-3" style="max-width:800px">
     <div class="card-body">
 
@@ -54,11 +71,11 @@
         </div>
         <div class="col-md-4">
           <label class="form-label">Veterinário(a)</label>
-          <input type="text" name="veterinario" class="form-control" value="Luana Feitosa">
+          <input type="text" name="veterinario" class="form-control" value="Luana Maria Feitosa Barroso">
         </div>
         <div class="col-md-3">
           <label class="form-label">CRMV</label>
-          <input type="text" name="crmv" class="form-control" placeholder="CRMV-PB 0000">
+          <input type="text" name="crmv" class="form-control" value="CRMV-PB 02956" placeholder="CRMV-PB 0000">
         </div>
       </div>
 
@@ -97,6 +114,23 @@ Furanil spray --- 1fr --- Passar na ferida 1x ao dia por 14 dias"></textarea>
     </div>
   </div>
 
+  <div class="card mb-3 border-success" style="max-width:800px">
+    <div class="card-body py-3">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="salvar_template" id="salvarTemplate"
+               onchange="document.getElementById('templateNomeWrap').style.display = this.checked ? 'block' : 'none'">
+        <label class="form-check-label fw-semibold" for="salvarTemplate">
+          <i class="bi bi-star me-1 text-success"></i>Salvar como receita personalizada?
+        </label>
+      </div>
+      <div id="templateNomeWrap" style="display:none" class="mt-2">
+        <input type="text" name="template_nome" class="form-control" maxlength="80"
+               placeholder="Nome do modelo (ex.: Vermífugo padrão, Pós-cirúrgico...)">
+        <div class="form-text">Fica salva e você pode usar em qualquer cliente depois.</div>
+      </div>
+    </div>
+  </div>
+
   <div class="d-flex gap-2" style="max-width:800px">
     <button type="submit" class="btn btn-primary px-4">
       <i class="bi bi-printer me-1"></i>Gerar Receita
@@ -113,21 +147,35 @@ const h = new Date();
 document.getElementById('dataReceita').value =
   String(h.getDate()).padStart(2,'0')+'/'+String(h.getMonth()+1).padStart(2,'0')+'/'+h.getFullYear();
 
-// ── Reaproveitar receita anterior ──
+// Preenche os campos da receita a partir de um objeto {tipo, veterinario, crmv, uso_oral, uso_topico, observacao}
+function preencherReceita(r) {
+  if (!r) return;
+  const f = document.forms[0];
+  if (r.tipo) { f.tipo.value = (r.tipo === 'especial' || r.tipo === 'special') ? 'especial' : 'simples'; }
+  if (r.veterinario) f.veterinario.value = r.veterinario;
+  if (r.crmv)        f.crmv.value = r.crmv;
+  f.uso_oral.value   = r.uso_oral || '';
+  f.uso_topico.value = r.uso_topico || '';
+  f.observacao.value = r.observacao || '';
+}
+
+// ── Reaproveitar receita anterior (deste animal) ──
 const RECEITAS_ANT = {{ (receitas_anteriores or []) | tojson }};
 const selReusar = document.getElementById('reusarReceita');
 if (selReusar) {
   selReusar.addEventListener('change', function () {
     if (this.value === '') return;
-    const r = RECEITAS_ANT[parseInt(this.value, 10)];
-    if (!r) return;
-    const f = document.forms[0];
-    if (r.tipo) { f.tipo.value = (r.tipo === 'especial' || r.tipo === 'special') ? 'especial' : 'simples'; }
-    if (r.veterinario) f.veterinario.value = r.veterinario;
-    if (r.crmv)        f.crmv.value = r.crmv;
-    f.uso_oral.value   = r.uso_oral || '';
-    f.uso_topico.value = r.uso_topico || '';
-    f.observacao.value = r.observacao || '';
+    preencherReceita(RECEITAS_ANT[parseInt(this.value, 10)]);
+  });
+}
+
+// ── Usar receita personalizada (modelo salvo, qualquer cliente) ──
+const RECEITAS_TPL = {{ (receitas_personalizadas or []) | tojson }};
+const selTpl = document.getElementById('usarTemplate');
+if (selTpl) {
+  selTpl.addEventListener('change', function () {
+    if (this.value === '') return;
+    preencherReceita(RECEITAS_TPL[parseInt(this.value, 10)]);
   });
 }
 </script>

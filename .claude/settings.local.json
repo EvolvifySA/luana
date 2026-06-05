@@ -28,7 +28,14 @@
       "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('webapp/routes.py',encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\('webapp/db.py',encoding='utf-8'\\).read\\(\\)\\); print\\('Python OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('webapp/db.py',encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\('webapp/routes.py',encoding='utf-8'\\).read\\(\\)\\); print\\('Python OK \\(db.py + routes.py\\)'\\)\")",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(python -c \"from playwright.sync_api import sync_playwright; print\\('playwright importa OK'\\)\")",
+      "Bash(cp Logooluana.png webapp/static/Logooluana.png && ls -la webapp/static/Logooluana.png && file webapp/static/Logooluana.png 2>/dev/null)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('webapp/routes.py',encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\('webapp/db.py',encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\('webapp/pdf_utils.py',encoding='utf-8'\\).read\\(\\)\\); print\\('Python OK'\\)\")",
+      "Bash(python -c \"from webapp import db; print\\('listar templates OK:', len\\(db.get_receita_templates\\(\\)\\)\\)\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\leona\\Desktop\\luana"
     ]
   }
 }

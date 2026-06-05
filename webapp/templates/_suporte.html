@@ -1,0 +1,261 @@
+{# ═══════════════════════════════════════════════════════════════
+   Widget de Suporte — Evo (tira-dúvidas + WhatsApp)
+   Inspirado no biolink, adaptado ao Evolvify Vet.
+   Incluir com {% include "_suporte.html" %} antes de </body>.
+   ═══════════════════════════════════════════════════════════════ #}
+<style>
+  :root { --evo-wa: #25d366; }
+  /* Botão flutuante */
+  .evo-fab {
+    position: fixed; right: 20px; bottom: 20px; z-index: 1200;
+    display: flex; align-items: center; gap: .5rem;
+    background: linear-gradient(135deg, #2563eb, #1e5bb8); color: #fff;
+    border: none; border-radius: 30px; padding: .7rem 1.1rem; cursor: pointer;
+    box-shadow: 0 8px 24px rgba(37,99,235,.4); font-size: .9rem; font-weight: 600;
+    font-family: 'Segoe UI', system-ui, sans-serif; transition: transform .15s, box-shadow .15s;
+  }
+  .evo-fab:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(37,99,235,.5); }
+  .evo-fab .evo-fab-ava { width: 30px; height: 30px; border-radius: 50%; background: #fff; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .evo-fab .evo-fab-ava img { width: 100%; height: 100%; object-fit: cover; }
+  .evo-fab .evo-fab-dot { position:absolute; top:-2px; right:-2px; width:12px; height:12px; background:#22c55e; border:2px solid #fff; border-radius:50%; }
+  .evo-head .evo-ava img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+  .evo-lbl img { width: 16px; height: 16px; border-radius: 50%; object-fit: cover; vertical-align: middle; }
+  .evo-typing img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
+
+  /* Painel do chat */
+  .evo-panel {
+    position: fixed; right: 20px; bottom: 20px; z-index: 1201;
+    width: 370px; max-width: calc(100vw - 24px); height: 560px; max-height: calc(100vh - 40px);
+    background: #eef2f7; border-radius: 18px; overflow: hidden;
+    box-shadow: 0 20px 60px rgba(10,34,64,.35); display: none; flex-direction: column;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  .evo-panel.open { display: flex; animation: evoUp .25s cubic-bezier(.34,1.56,.64,1) both; }
+  @keyframes evoUp { from { opacity:0; transform: translateY(20px) scale(.96); } to { opacity:1; transform:none; } }
+
+  .evo-head {
+    background: linear-gradient(135deg, #0a2240, #1e5bb8); color: #fff;
+    padding: .85rem 1rem; display: flex; align-items: center; gap: .65rem;
+  }
+  .evo-head .evo-ava { width: 38px; height: 38px; border-radius: 50%; background: rgba(255,255,255,.15);
+    display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+  .evo-head .evo-h-info { flex: 1; line-height: 1.15; min-width: 0; }
+  .evo-head .evo-h-info .n { font-weight: 700; font-size: .95rem; }
+  .evo-head .evo-h-info .s { font-size: .72rem; color: #b9cdea; }
+  .evo-head .evo-on { width: 7px; height: 7px; background: #22c55e; border-radius: 50%; display: inline-block; margin-right: 4px; }
+  .evo-head .evo-close { background: none; border: none; color: #cdd9ee; font-size: 1.3rem; cursor: pointer; line-height: 1; }
+  .evo-head .evo-close:hover { color: #fff; }
+
+  .evo-area { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .evo-msg { max-width: 88%; padding: 10px 13px; font-size: 13px; line-height: 1.5; border-radius: 14px; animation: evoUp .25s ease both; }
+  .evo-msg.bot { background: #fff; border: 1px solid #e8edf3; border-radius: 4px 14px 14px 14px; align-self: flex-start; box-shadow: 0 2px 8px rgba(15,34,64,.06); color: #1e293b; }
+  .evo-msg.bot strong { color: #2563eb; }
+  .evo-msg.user { background: #2563eb; color: #fff; border-radius: 14px 4px 14px 14px; align-self: flex-end; font-weight: 500; }
+  .evo-lbl { font-size: 10px; color: #94a3b8; margin-bottom: 1px; display: flex; align-items: center; gap: 4px; }
+  .evo-lbl.u { justify-content: flex-end; }
+
+  .evo-typing { display: flex; align-items: center; gap: 5px; padding: 10px 13px; background: #fff; border: 1px solid #e8edf3; border-radius: 4px 14px 14px 14px; align-self: flex-start; width: fit-content; }
+  .evo-typing span { width: 6px; height: 6px; background: #2563eb; border-radius: 50%; animation: evoTd 1.2s infinite; }
+  .evo-typing span:nth-child(2){ animation-delay:.2s; } .evo-typing span:nth-child(3){ animation-delay:.4s; }
+  @keyframes evoTd { 0%,60%,100%{opacity:.3;transform:translateY(0);} 30%{opacity:1;transform:translateY(-3px);} }
+
+  .evo-chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 4px 0 10px; justify-content: flex-end; transition: opacity .2s; }
+  .evo-chip { font-size: 12px; padding: 7px 12px; background: #fff; border: 1.5px solid #cdd9ee; border-radius: 20px; color: #2563eb; cursor: pointer; transition: all .15s; text-decoration: none; display: inline-block; }
+  .evo-chip:hover { background: #2563eb; color: #fff; }
+  .evo-chip.wa { background: rgba(37,211,102,.12); border-color: rgba(37,211,102,.55); color: #1a8a45; }
+  .evo-chip.wa:hover { background: var(--evo-wa); color: #fff; }
+  .evo-chip.back { opacity: .6; font-size: 11px; }
+
+  .evo-foot { padding: 9px 12px; background: rgba(37,211,102,.05); border-top: 1px solid rgba(37,211,102,.15); display: flex; align-items: center; gap: 8px; }
+  .evo-foot .t { flex: 1; font-size: 11px; color: #64748b; }
+  .evo-foot a { background: var(--evo-wa); color: #fff; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 18px; text-decoration: none; white-space: nowrap; }
+
+  @media (max-width: 480px) {
+    .evo-panel { right: 8px; bottom: 8px; height: calc(100vh - 16px); }
+    .evo-fab span { display: none; }
+    .evo-fab { padding: .85rem; border-radius: 50%; }
+  }
+</style>
+
+<button class="evo-fab" id="evoFab" onclick="evoOpen()" title="Suporte Evolvify Vet">
+  <span class="evo-fab-ava"><img id="evoFabImg" alt="Evo"></span>
+  <span>Precisa de ajuda?</span>
+  <span class="evo-fab-dot"></span>
+</button>
+
+<div class="evo-panel" id="evoPanel">
+  <div class="evo-head">
+    <span class="evo-ava"><img id="evoHeadImg" alt="Evo"></span>
+    <div class="evo-h-info">
+      <div class="n">Evo · Suporte</div>
+      <div class="s"><span class="evo-on"></span>Evolvify Vet · online</div>
+    </div>
+    <button class="evo-close" onclick="evoClose()" title="Fechar">&times;</button>
+  </div>
+  <div class="evo-area" id="evoArea"></div>
+  <div class="evo-foot">
+    <span class="t">Prefere falar com a gente?</span>
+    <a id="evoWaFoot" href="#" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> WhatsApp</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ── Config ──
+  const WA = '5583920037703';  // (83) 92003-7703
+  const MASC = {
+    inicio:   "{{ url_for('static', filename='mascotes/mascoteinicio.png') }}",
+    feliz:    "{{ url_for('static', filename='mascotes/mascotefeliz.png') }}",
+    apontando:"{{ url_for('static', filename='mascotes/mascoteapontando.png') }}",
+    pensando: "{{ url_for('static', filename='mascotes/mascotepensando.png') }}",
+  };
+  const waLink = (msg) => `https://wa.me/${WA}?text=${encodeURIComponent(msg || 'Olá! Preciso de ajuda com o Evolvify Vet.')}`;
+  document.getElementById('evoWaFoot').href = waLink('Olá! Preciso de ajuda com o Evolvify Vet.');
+
+  // Carrega a mascote do botão em segundo plano (não bloqueia a página).
+  setTimeout(() => { document.getElementById('evoFabImg').src = MASC.inicio; }, 800);
+
+  const MODO = "{{ suporte_modo|default('app') }}";
+
+  // ── Fluxos da ENTRADA (login): sobre o sistema + contato ──
+  const flowsEntrada = {
+    inicio: {
+      msg: 'Oi! Eu sou a <strong>Evo</strong> 🐾<br><br>Bem-vindo(a) ao <strong>Evolvify Vet</strong>! Posso te contar sobre o sistema ou te levar pra falar com a gente.',
+      chips: [
+        { l: '🐾 O que é o Evolvify Vet?', f: 'sobre' },
+        { l: '✨ O que dá pra fazer?', f: 'recursos' },
+        { l: '💬 Falar com a gente', wa: 'Olá! Vim pelo Evolvify Vet e quero falar com vocês.' },
+      ]
+    },
+    sobre: {
+      msg: 'O <strong>Evolvify Vet</strong> é um sistema de gestão para clínicas veterinárias. 🐶🐱<br><br>Clientes, animais, atendimentos, receitas, consultas e financeiro — tudo num lugar só, rápido e organizado.',
+      chips: [
+        { l: '✨ O que dá pra fazer?', f: 'recursos' },
+        { l: '💬 Falar com a gente', wa: 'Olá! Vim pelo Evolvify Vet e quero saber mais.' },
+      ]
+    },
+    recursos: {
+      msg: 'Com o Evolvify Vet você:<br><br>• Cadastra clientes e seus animais 🐾<br>• Emite <strong>tickets</strong>, <strong>receitas</strong> e <strong>consultas</strong> (com PDF)<br>• Salva <strong>receitas personalizadas</strong> pra reusar<br>• Controla o <strong>financeiro</strong> com filtro por mês e dia',
+      chips: [
+        { l: '💬 Quero falar com vocês', wa: 'Olá! Vim pelo Evolvify Vet e quero conhecer melhor o sistema.' },
+      ]
+    },
+  };
+
+  // ── Fluxos de DENTRO (app): tira-dúvidas de como usar ──
+  const flowsApp = {
+    inicio: {
+      msg: 'Oi! Eu sou a <strong>Evo</strong>, o suporte do <strong>Evolvify Vet</strong> 🐾<br><br>Como posso te ajudar?',
+      chips: [
+        { l: '📘 Como usar o sistema', f: 'como_usar' },
+        { l: '⚠️ Estou com um problema', f: 'problema' },
+        { l: '💬 Falar com o suporte', wa: 'Olá! Preciso de ajuda com o Evolvify Vet.' },
+      ]
+    },
+    como_usar: {
+      msg: 'Sobre o que você quer saber? 😊',
+      chips: [
+        { l: '👤 Cadastrar cliente', f: 'cadastrar' },
+        { l: '🧾 Emitir ticket', f: 'ticket' },
+        { l: '💊 Emitir receita', f: 'receita' },
+        { l: '🩺 Fazer consulta', f: 'consulta' },
+        { l: '⭐ Receita personalizada', f: 'personalizada' },
+      ]
+    },
+    cadastrar: {
+      msg: 'Para cadastrar um cliente:<br><br>1. No menu, clique em <strong>Novo Cliente</strong><br>2. Preencha <strong>nome</strong> e <strong>celular</strong> (obrigatórios)<br>3. Salve — depois, dentro do perfil, clique em <strong>Novo Animal</strong> para adicionar os pets.',
+      chips: [{ l: 'Outra dúvida', f: 'como_usar' }, { l: '💬 Falar com suporte', wa: 'Tenho uma dúvida sobre cadastro de clientes no Evolvify Vet.' }]
+    },
+    ticket: {
+      msg: 'Para emitir um ticket:<br><br>1. Abra o cliente e, no card do animal, clique em <strong>Novo Ticket</strong><br>2. Adicione os itens (digite para buscar o serviço/produto)<br>3. O total é calculado sozinho — clique em <strong>Gerar e Imprimir Ticket</strong>.<br><br>💡 Dá para reaproveitar um ticket anterior daquele animal!',
+      chips: [{ l: 'Outra dúvida', f: 'como_usar' }, { l: '💬 Falar com suporte', wa: 'Tenho uma dúvida sobre emissão de tickets no Evolvify Vet.' }]
+    },
+    receita: {
+      msg: 'Para emitir uma receita:<br><br>1. Abra o cliente → animal → <strong>Emitir Receita</strong><br>2. Escolha o tipo e escreva <strong>um medicamento por linha</strong> em Uso Oral/Tópico<br>3. Gere a receita.<br><br>💡 Você pode reaproveitar uma receita anterior ou usar uma <strong>receita personalizada</strong>.',
+      chips: [{ l: 'Outra dúvida', f: 'como_usar' }, { l: '💬 Falar com suporte', wa: 'Tenho uma dúvida sobre receitas no Evolvify Vet.' }]
+    },
+    consulta: {
+      msg: 'Para fazer uma consulta:<br><br>1. Abra o cliente → animal → <strong>Nova Consulta</strong><br>2. Preencha os campos clínicos<br>3. Clique em <strong>Finalizar consulta</strong> para gerar o documento.<br><br>💡 Dá para reaproveitar uma consulta anterior do mesmo animal.',
+      chips: [{ l: 'Outra dúvida', f: 'como_usar' }, { l: '💬 Falar com suporte', wa: 'Tenho uma dúvida sobre consultas no Evolvify Vet.' }]
+    },
+    personalizada: {
+      msg: 'No menu <strong>Receitas Personalizadas</strong> você cria e edita modelos de receita. 📋<br><br>Eles ficam salvos e aparecem em qualquer receita, no seletor <strong>"Usar receita personalizada"</strong> — servem para qualquer cliente.',
+      chips: [{ l: 'Outra dúvida', f: 'como_usar' }, { l: '💬 Falar com suporte', wa: 'Tenho uma dúvida sobre receitas personalizadas no Evolvify Vet.' }]
+    },
+    problema: {
+      msg: 'Poxa, vamos resolver! 🛠️<br><br>Me conta rapidinho o que aconteceu pelo WhatsApp que a gente te ajuda na hora.',
+      chips: [{ l: '💬 Falar no WhatsApp', wa: 'Olá! Estou com um problema no Evolvify Vet:' }]
+    },
+  };
+
+  // Escolhe o conjunto de fluxos conforme onde o widget está.
+  const flows = (MODO === 'entrada') ? flowsEntrada : flowsApp;
+
+  const area = () => document.getElementById('evoArea');
+
+  function scroll() { const a = area(); a.scrollTop = a.scrollHeight; }
+
+  function disableChips() {
+    document.querySelectorAll('.evo-chips').forEach(el => { el.style.opacity = '.35'; el.style.pointerEvents = 'none'; });
+  }
+
+  function showChips(chips) {
+    const wrap = document.createElement('div');
+    wrap.className = 'evo-chips';
+    let html = chips.map(c => c.wa
+      ? `<a class="evo-chip wa" href="${waLink(c.wa)}" target="_blank" rel="noopener">${c.l}</a>`
+      : `<button class="evo-chip" onclick="evoFlow('${c.f}','${c.l.replace(/'/g, "\\'")}')">${c.l}</button>`
+    ).join('');
+    if (!chips.some(c => c.f === 'inicio')) {
+      html += `<button class="evo-chip back" onclick="evoFlow('inicio','↩ Início')">↩ Início</button>`;
+    }
+    wrap.innerHTML = html;
+    area().appendChild(wrap); scroll();
+  }
+
+  function userMsg(t) {
+    const a = area();
+    const lbl = document.createElement('div'); lbl.className = 'evo-lbl u'; lbl.textContent = 'Você';
+    const m = document.createElement('div'); m.className = 'evo-msg user'; m.textContent = t;
+    a.appendChild(lbl); a.appendChild(m); scroll();
+  }
+
+  function botMsg(html, chips) {
+    const a = area();
+    const td = document.createElement('div'); td.className = 'evo-typing';
+    td.innerHTML = `<img src="${MASC.pensando}" alt=""><span></span><span></span><span></span>`;
+    a.appendChild(td); scroll();
+    setTimeout(() => {
+      td.remove();
+      const lbl = document.createElement('div'); lbl.className = 'evo-lbl';
+      lbl.innerHTML = `<img src="${MASC.apontando}" alt=""> Evo · Suporte`;
+      const m = document.createElement('div'); m.className = 'evo-msg bot'; m.innerHTML = html;
+      a.appendChild(lbl); a.appendChild(m);
+      if (chips) showChips(chips);
+      scroll();
+    }, 700 + Math.random() * 400);
+  }
+
+  window.evoFlow = function (id, label) {
+    const f = flows[id]; if (!f) return;
+    disableChips();
+    if (label) userMsg(label);
+    botMsg(f.msg, f.chips);
+  };
+
+  window.evoOpen = function () {
+    document.getElementById('evoPanel').classList.add('open');
+    document.getElementById('evoFab').style.display = 'none';
+    const hi = document.getElementById('evoHeadImg');
+    if (!hi.src) hi.src = MASC.feliz;
+    if (!area().dataset.started) {
+      area().dataset.started = '1';
+      setTimeout(() => botMsg(flows.inicio.msg, flows.inicio.chips), 300);
+    }
+  };
+  window.evoClose = function () {
+    document.getElementById('evoPanel').classList.remove('open');
+    document.getElementById('evoFab').style.display = '';
+  };
+})();
+</script>

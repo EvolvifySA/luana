@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Novo Cliente{% endblock %}
-{% block topbar_title %}Cadastrar Cliente{% endblock %}
-{% block topbar_sub %}Adicione um novo cliente à base{% endblock %}
+{% block title %}{{ 'Editar Cliente' if editando else 'Novo Cliente' }}{% endblock %}
+{% block topbar_title %}{{ 'Editar Cliente' if editando else 'Cadastrar Cliente' }}{% endblock %}
+{% block topbar_sub %}{{ 'Atualize os dados do cliente' if editando else 'Adicione um novo cliente à base' }}{% endblock %}
 
 {% block content %}
-<form method="post" style="max-width:840px;margin:0 auto">
+<form method="post" action="{{ url_for('editar_cliente', id_cliente=id_cliente) if editando else url_for('novo_cliente') }}" style="max-width:840px;margin:0 auto">
   <div class="card">
-    <div class="card-header"><i class="bi bi-person-plus me-2 text-azul"></i>Novo Cliente</div>
+    <div class="card-header"><i class="bi bi-person-{{ 'gear' if editando else 'plus' }} me-2 text-azul"></i>{{ 'Editar Cliente' if editando else 'Novo Cliente' }}</div>
     <div class="card-body p-4">
 
       <div class="sec-label"><i class="bi bi-person"></i>Dados Pessoais</div>
@@ -75,8 +75,8 @@
 
     </div>
     <div class="card-footer bg-white d-flex justify-content-end gap-2 py-3" style="border-top:1px solid var(--line);border-radius:0 0 16px 16px">
-      <a href="{{ url_for('clientes') }}" class="btn btn-light-soft">Cancelar</a>
-      <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>Cadastrar cliente</button>
+      <a href="{{ url_for('cliente', id_cliente=id_cliente) if editando else url_for('clientes') }}" class="btn btn-light-soft">Cancelar</a>
+      <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>{{ 'Salvar alterações' if editando else 'Cadastrar cliente' }}</button>
     </div>
   </div>
 </form>
