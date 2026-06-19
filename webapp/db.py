@@ -2290,6 +2290,8 @@ def salvar_receita(dados):
     from datetime import datetime
     prescribed_at = dados.get("data")
     prescribed_at = datetime.strptime(prescribed_at, "%d/%m/%Y").date() if prescribed_at else date.today()
+    # O banco aceita só 'simple' ou 'controlled'; o form manda 'simples'/'especial'.
+    tipo_db = "controlled" if (dados.get("tipo") or "").lower() in ("especial", "special", "controlled") else "simple"
     with _pg_conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
@@ -2302,7 +2304,7 @@ def salvar_receita(dados):
                 (
                     client["id"],
                     animal["id"] if animal else None,
-                    dados.get("tipo") or "simple",
+                    tipo_db,
                     prescribed_at,
                     dados.get("veterinario"),
                     dados.get("crmv"),
@@ -2357,7 +2359,7 @@ def get_receita(receita_id):
         "id": str(receita["id"]),
         "id_cliente": client.get("id_cliente") if client else str(receita["client_id"]),
         "id_animal": animal.get("id_animal") if animal else (str(receita["animal_id"]) if receita.get("animal_id") else ""),
-        "tipo": receita.get("prescription_type") or "simple",
+        "tipo": "especial" if receita.get("prescription_type") == "controlled" else "simples",
         "data": receita["prescribed_at"].strftime("%d/%m/%Y") if receita.get("prescribed_at") else "",
         "veterinario": receita.get("veterinarian") or "",
         "crmv": receita.get("crmv") or "",
