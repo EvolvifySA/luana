@@ -855,13 +855,18 @@ _LEGACY_ultimos_tickets = ultimos_tickets
 try:
     import json
     import socket
+    import threading
+    import uuid as _uuid_mod
     from urllib.parse import urlsplit, parse_qs, unquote
     import psycopg2
     from psycopg2.extras import RealDictCursor, Json
+    from psycopg2 import pool as _pg_pool_mod
 except Exception:  # pragma: no cover - fallback when psycopg2 is unavailable
     psycopg2 = None
     RealDictCursor = None
     Json = None
+    _pg_pool_mod = None
+    threading = None
 
 
 def _json_dumps(value):
@@ -872,7 +877,31 @@ def _pg_enabled():
     return bool(getattr(config, "DATABASE_URL", "").strip()) and psycopg2 is not None
 
 
-def _pg_conn():
+# ─── Pool de conexões / conexão por requisição ───────────────────────────────
+#
+# Antes, cada query abria uma conexão psycopg2 nova (DNS + TCP + TLS + auth) ao
+# Supabase remoto e a descartava. Uma única página chegava a abrir dezenas de
+# conexões (N+1), o que dominava o tempo de resposta. Agora mantemos um pool por
+# processo e reaproveitamos UMA conexão por requisição HTTP (guardada em flask.g),
+# devolvendo-a ao pool no teardown.
+
+_PG_POOL = None
+_PG_POOL_LOCK = threading.Lock() if threading is not None else None
+
+# Timeouts e keepalives evitam que um connect/query pendure por minutos quando a
+# rede ou o pooler do Supabase engasga (causa dos outliers de lentidão extrema).
+_PG_CONNECT_OPTS = {
+    "connect_timeout": 5,
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 3,
+    "options": "-c statement_timeout=15000",
+}
+
+
+def _pg_connect_args():
+    """Resolve os argumentos de conexão a partir do DATABASE_URL (uma vez)."""
     dsn = getattr(config, "DATABASE_URL", "").strip()
     if not dsn:
         raise RuntimeError("DATABASE_URL não configurado.")
@@ -881,33 +910,137 @@ def _pg_conn():
     if parsed.hostname:
         host = parsed.hostname
         port = parsed.port or 5432
-        user = unquote(parsed.username or "")
-        password = unquote(parsed.password or "")
-        database = parsed.path.lstrip("/") or "postgres"
-        query = parse_qs(parsed.query)
-        sslmode = (query.get("sslmode") or ["require"])[0]
-
+        kwargs = dict(
+            dbname=parsed.path.lstrip("/") or "postgres",
+            user=unquote(parsed.username or ""),
+            password=unquote(parsed.password or ""),
+            host=host,
+            port=port,
+            sslmode=(parse_qs(parsed.query).get("sslmode") or ["require"])[0],
+            **_PG_CONNECT_OPTS,
+        )
+        # Força IPv4 (o host direto do Supabase é IPv6-only em alguns ambientes).
         try:
-            ipv4 = None
             for family, _, _, _, sockaddr in socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM):
                 if family == socket.AF_INET:
-                    ipv4 = sockaddr[0]
+                    kwargs["hostaddr"] = sockaddr[0]
                     break
-
-            if ipv4:
-                return psycopg2.connect(
-                    dbname=database,
-                    user=user,
-                    password=password,
-                    host=host,
-                    hostaddr=ipv4,
-                    port=port,
-                    sslmode=sslmode,
-                )
         except socket.gaierror:
             pass
+        return ((), kwargs)
 
-    return psycopg2.connect(dsn)
+    return ((dsn,), dict(_PG_CONNECT_OPTS))
+
+
+def _pg_pool_size():
+    try:
+        return max(1, int(getattr(config, "PG_POOL_MAX", 0) or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _get_pool():
+    global _PG_POOL
+    if _PG_POOL is not None:
+        return _PG_POOL
+    if _pg_pool_mod is None or _PG_POOL_LOCK is None:
+        return None
+    with _PG_POOL_LOCK:
+        if _PG_POOL is None:
+            args, kwargs = _pg_connect_args()
+            maxconn = _pg_pool_size() or 8
+            _PG_POOL = _pg_pool_mod.ThreadedConnectionPool(1, maxconn, *args, **kwargs)
+    return _PG_POOL
+
+
+def _has_app_ctx():
+    try:
+        from flask import has_app_context
+        return has_app_context()
+    except Exception:
+        return False
+
+
+class _PgConnCtx:
+    """Context manager que preserva a semântica de `with _pg_conn() as conn:`
+    (commit no sucesso, rollback no erro), mas reaproveita a conexão da
+    requisição em vez de abrir/fechar uma nova a cada query."""
+
+    def __init__(self, conn, release):
+        self._conn = conn
+        self._release = release
+
+    def __enter__(self):
+        return self._conn
+
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            if exc_type is None:
+                self._conn.commit()
+            else:
+                self._conn.rollback()
+        finally:
+            if self._release is not None:
+                self._release(self._conn)
+        return False
+
+
+def _pg_conn():
+    pool = _get_pool()
+
+    # Dentro de uma requisição: reaproveita uma única conexão por requisição.
+    if pool is not None and _has_app_ctx():
+        from flask import g
+        conn = getattr(g, "_pg_conn", None)
+        if conn is None or conn.closed:
+            conn = pool.getconn()
+            g._pg_conn = conn
+        return _PgConnCtx(conn, release=None)
+
+    # Fora de requisição (scripts): empresta e devolve ao pool no fim do bloco.
+    if pool is not None:
+        conn = pool.getconn()
+        return _PgConnCtx(conn, release=pool.putconn)
+
+    # Sem pool disponível: conexão direta (fallback).
+    args, kwargs = _pg_connect_args()
+    conn = psycopg2.connect(*args, **kwargs)
+    return _PgConnCtx(conn, release=lambda c: c.close())
+
+
+def _pg_teardown(exc=None):
+    """Devolve a conexão da requisição ao pool (registrar no teardown_appcontext)."""
+    try:
+        from flask import g
+    except Exception:
+        return
+    conn = g.pop("_pg_conn", None)
+    if conn is None:
+        return
+    pool = _PG_POOL
+    try:
+        if getattr(conn, "closed", True):
+            if pool is not None:
+                pool.putconn(conn, close=True)
+            return
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        if pool is not None:
+            pool.putconn(conn)
+        else:
+            conn.close()
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def init_app(app):
+    """Liga o ciclo de vida da conexão por requisição ao app Flask."""
+    app.teardown_appcontext(_pg_teardown)
 
 
 def _pg_fetchall(sql, params=()):
@@ -1049,34 +1182,80 @@ def _map_consultation_row(row):
     }
 
 
+def _uuid_or_none(value):
+    """Retorna o UUID canônico se `value` for um UUID válido, senão None."""
+    try:
+        return str(_uuid_mod.UUID(str(value)))
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
+def _request_cache(namespace):
+    """Cache por requisição (flask.g) para evitar re-resolver o mesmo registro
+    várias vezes na mesma página. Fora de requisição, retorna None (sem cache)."""
+    if not _has_app_ctx():
+        return None
+    from flask import g
+    store = getattr(g, "_resolve_cache", None)
+    if store is None:
+        store = {}
+        g._resolve_cache = store
+    return store.setdefault(namespace, {})
+
+
 def _resolve_client_pg(id_cliente):
     clean = str(id_cliente).replace("new_", "")
-    row = _pg_fetchone(
-        """
-        select *
-          from public.clients
-         where id::text = %s
-            or legacy_client_id = %s
-            or name = %s
-         limit 1
-        """,
-        (clean, clean, clean),
-    )
+    cache = _request_cache("client")
+    if cache is not None and clean in cache:
+        return cache[clean]
+
+    as_uuid = _uuid_or_none(clean)
+    if as_uuid:
+        # Caminho rápido: usa a chave primária (índice), sem seq scan.
+        row = _pg_fetchone(
+            "select * from public.clients where id = %s::uuid limit 1",
+            (as_uuid,),
+        )
+    else:
+        row = _pg_fetchone(
+            """
+            select *
+              from public.clients
+             where legacy_client_id = %s
+                or name = %s
+             limit 1
+            """,
+            (clean, clean),
+        )
+    if cache is not None:
+        cache[clean] = row
     return row
 
 
 def _resolve_animal_pg(id_animal):
     clean = str(id_animal).replace("new_", "")
-    row = _pg_fetchone(
-        """
-        select *
-          from public.animals
-         where id::text = %s
-            or legacy_animal_id = %s
-         limit 1
-        """,
-        (clean, clean),
-    )
+    cache = _request_cache("animal")
+    if cache is not None and clean in cache:
+        return cache[clean]
+
+    as_uuid = _uuid_or_none(clean)
+    if as_uuid:
+        row = _pg_fetchone(
+            "select * from public.animals where id = %s::uuid limit 1",
+            (as_uuid,),
+        )
+    else:
+        row = _pg_fetchone(
+            """
+            select *
+              from public.animals
+             where legacy_animal_id = %s
+             limit 1
+            """,
+            (clean,),
+        )
+    if cache is not None:
+        cache[clean] = row
     return row
 
 
@@ -2227,23 +2406,24 @@ def get_tickets_cliente(id_cliente):
         return [], []
     rows = _pg_fetchall(
         """
-        select *
-          from public.tickets
-         where client_id = %s
-         order by ticket_date desc, created_at desc
+        select t.*, a.name as animal_name
+          from public.tickets t
+     left join public.animals a on a.id = t.animal_id
+         where t.client_id = %s
+         order by t.ticket_date desc, t.created_at desc
         """,
         (client["id"],),
     )
     tickets = []
     for r in rows:
-        animal_row = _resolve_animal_pg(r["animal_id"]) if r.get("animal_id") else None
+        nome_animal = r.get("animal_name") or ""
         tickets.append({
             "id": str(r["id"]),
             "data": r["ticket_date"].strftime("%d/%m/%Y") if r.get("ticket_date") else "",
             "veterinario": r.get("veterinarian") or "",
             "nome_cliente": client.get("name") or "",
-            "nome_animal": (animal_row.get("name") if animal_row else "") or "",
-            "animal": (animal_row.get("name") if animal_row else "") or "",
+            "nome_animal": nome_animal,
+            "animal": nome_animal,
             "total_liquido": f'{float(r.get("net_total") or 0):.2f}'.replace(".", ","),
             "status": r.get("status") or "",
             "pago": (r.get("status") or "").lower() == "paid",
@@ -2341,18 +2521,8 @@ def salvar_receita(dados):
     return prescription_id
 
 
-def get_receita(receita_id):
-    if not _pg_enabled():
-        return _LEGACY_get_receita(receita_id)
-    receita = _resolve_receita_row(receita_id)
-    if not receita:
-        return None
-    client = _map_client_row(_resolve_client_pg(receita["client_id"]))
-    animal = _map_animal_row(_resolve_animal_pg(receita["animal_id"])) if receita.get("animal_id") else {}
-    items = _pg_fetchall(
-        "select category, medication, quantity, instructions, raw_text from public.prescription_items where prescription_id = %s order by category, sequence",
-        (receita["id"],),
-    )
+def _build_receita(receita, items, client, animal):
+    """Monta o dict de receita a partir de linhas já carregadas (sem novas queries)."""
     oral = [i.get("raw_text") or i.get("medication") for i in items if i.get("category") == "oral"]
     topico = [i.get("raw_text") or i.get("medication") for i in items if i.get("category") == "topical"]
     return {
@@ -2369,6 +2539,21 @@ def get_receita(receita_id):
         "oral_itens": oral,
         "topico_itens": topico,
     }
+
+
+def get_receita(receita_id):
+    if not _pg_enabled():
+        return _LEGACY_get_receita(receita_id)
+    receita = _resolve_receita_row(receita_id)
+    if not receita:
+        return None
+    client = _map_client_row(_resolve_client_pg(receita["client_id"]))
+    animal = _map_animal_row(_resolve_animal_pg(receita["animal_id"])) if receita.get("animal_id") else {}
+    items = _pg_fetchall(
+        "select category, medication, quantity, instructions, raw_text from public.prescription_items where prescription_id = %s order by category, sequence",
+        (receita["id"],),
+    )
+    return _build_receita(receita, items, client, animal)
 
 
 def get_receitas_animal(id_cliente, id_animal):
@@ -2388,7 +2573,30 @@ def get_receitas_animal(id_cliente, id_animal):
         """,
         (client["id"], animal["id"] if animal else None, animal["id"] if animal else None),
     )
-    return [get_receita(r["id"]) for r in rows]
+    if not rows:
+        return []
+
+    # Busca TODOS os itens das receitas numa única query (evita N+1).
+    presc_ids = [r["id"] for r in rows]
+    item_rows = _pg_fetchall(
+        """
+        select prescription_id, category, medication, quantity, instructions, raw_text
+          from public.prescription_items
+         where prescription_id = any(%s::uuid[])
+         order by category, sequence
+        """,
+        (presc_ids,),
+    )
+    itens_por_receita = {}
+    for it in item_rows:
+        itens_por_receita.setdefault(it["prescription_id"], []).append(it)
+
+    client_map = _map_client_row(client)
+    animal_map = _map_animal_row(animal) if animal else {}
+    return [
+        _build_receita(r, itens_por_receita.get(r["id"], []), client_map, animal_map)
+        for r in rows
+    ]
 
 
 # ─── Receitas personalizadas (modelos reutilizáveis em qualquer cliente) ──────

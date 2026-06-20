@@ -22,6 +22,9 @@ def create_app():
             "usuario_logado": session.get("usuario"),
         }
 
+    from . import db
+    db.init_app(app)
+
     from .routes import register_routes
     register_routes(app)
 

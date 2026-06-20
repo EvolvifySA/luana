@@ -44,6 +44,9 @@ LIMIT = int(_get("SCRAPER_LIMIT", "500"))
 SECRET_KEY = _get("SECRET_KEY", "dev-secret-trocar")
 FLASK_PORT = int(_get("FLASK_PORT", "5001"))
 DATABASE_URL = _get("DATABASE_URL", "")
+# Máximo de conexões no pool por processo (gunicorn worker). Como cada
+# requisição usa 1 conexão e há ~4 threads/worker, 8 cobre com folga.
+PG_POOL_MAX = int(_get("PG_POOL_MAX", "8"))
 SUPABASE_URL = _get("SUPABASE_URL", "")
 SUPABASE_SERVICE_ROLE_KEY = _get("SUPABASE_SERVICE_ROLE_KEY", "")
 SUPABASE_STORAGE_BUCKET = _get("SUPABASE_STORAGE_BUCKET", "")

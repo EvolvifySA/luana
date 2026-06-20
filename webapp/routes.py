@@ -427,6 +427,10 @@ def register_routes(app):
         if secao and id_animal:
             if secao == "consultas":
                 registros = db.get_consultas_animal(id_cliente, id_animal)
+            elif secao == "receituario":
+                # O receituário é renderizado a partir de `receitas_criadas`;
+                # `registros` não é usado, então evitamos uma query inútil.
+                pass
             else:
                 registros = db.get_registros_animal(id_cliente, id_animal, secao)
         receitas_criadas = []
