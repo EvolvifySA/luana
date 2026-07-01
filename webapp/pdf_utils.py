@@ -26,6 +26,27 @@ def logo_data_uri() -> str:
     return ""
 
 
+@lru_cache(maxsize=1)
+def receita_fundo_data_uri() -> str:
+    """Arte de fundo da receita (papel timbrado da marca), embutida no HTML/PDF.
+
+    Basta colocar a imagem em webapp/static/receita_fundo.(png|jpg). Se não
+    existir, a receita sai sem fundo (layout limpo).
+    """
+    static = Path(__file__).resolve().parent / "static"
+    candidatos = [
+        ("receita_fundo.png", "image/png"),
+        ("receita_fundo.jpg", "image/jpeg"),
+        ("receita_fundo.jpeg", "image/jpeg"),
+    ]
+    for nome, mime in candidatos:
+        arq = static / nome
+        if arq.exists():
+            encoded = base64.b64encode(arq.read_bytes()).decode("ascii")
+            return f"data:{mime};base64,{encoded}"
+    return ""
+
+
 def _html_to_pdf_bytes(html: str) -> bytes:
     try:
         from playwright.sync_api import sync_playwright
@@ -84,6 +105,7 @@ def pdf_context(**kwargs):
     """Contexto padrão para tickets/receitas em PDF e preview HTML."""
     return {
         "logo_src": logo_data_uri(),
+        "receita_fundo_src": receita_fundo_data_uri(),
         **kwargs,
     }
 

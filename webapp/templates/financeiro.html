@@ -121,7 +121,7 @@
     {% if tickets %}
     <div class="table-responsive">
       <table class="table mb-0">
-        <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Animal</th><th class="text-end">Valor</th><th>Status</th><th>Origem</th></tr></thead>
+        <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Animal</th><th class="text-end">Valor</th><th>Status</th><th>Origem</th><th></th></tr></thead>
         <tbody>
           {% for t in tickets %}
           <tr {% if t.id %}onclick="window.location='{{ url_for('ver_ticket', ticket_id=t.id) }}'" style="cursor:pointer"{% endif %} title="{% if t.id %}Clique para abrir o ticket{% endif %}">
@@ -138,15 +138,30 @@
             <td class="text-end fw-bold">R$ {{ brl(t.valor) }}</td>
             <td>
               <div class="d-flex flex-wrap gap-2 align-items-center">
-                {% if t.pago %}<span class="pill pill-green"><i class="bi bi-check"></i>Pago</span>
+                {% if t.pago %}<span class="pill pill-green"><i class="bi bi-check"></i>Pago{% if t.forma_pagamento %} · {{ t.forma_pagamento }}{% endif %}</span>
                 {% else %}<span class="pill pill-amber"><i class="bi bi-clock"></i>Pendente</span>{% endif %}
                 {% if t.id %}
-                <form method="post" action="{{ url_for('ticket_status', ticket_id=t.id) }}" class="d-inline" onclick="event.stopPropagation()">
+                <form method="post" action="{{ url_for('ticket_status', ticket_id=t.id) }}" class="d-inline d-flex gap-1 align-items-center" onclick="event.stopPropagation()">
                   {% if t.pago %}
                   <input type="hidden" name="status" value="pending">
                   <button class="btn btn-xs btn-light-soft" type="submit"><i class="bi bi-arrow-repeat me-1"></i>Marcar pendente</button>
                   {% else %}
                   <input type="hidden" name="status" value="paid">
+                  <select name="forma_pagamento" class="form-select form-select-sm" style="width:auto;min-width:130px" required
+                          onclick="event.stopPropagation()"
+                          onchange="if(this.value==='__outro__'){var t=prompt('Digite a forma de pagamento:');if(t){var o=document.createElement('option');o.value=t;o.textContent=t;o.selected=true;this.insertBefore(o,this.options[this.options.length-1]);}else{this.value='';}}">
+                    <option value="" disabled selected>Forma de pagamento…</option>
+                    <option value="Dinheiro">Dinheiro</option>
+                    <option value="Pix">Pix</option>
+                    <option value="Cartão de débito">Cartão de débito</option>
+                    <option value="Crédito à vista">Crédito à vista</option>
+                    <option value="Crédito 2x">Crédito 2x</option>
+                    <option value="Crédito 3x">Crédito 3x</option>
+                    <option value="Crédito 4x">Crédito 4x</option>
+                    <option value="Crédito 5x">Crédito 5x</option>
+                    <option value="Crédito 6x">Crédito 6x</option>
+                    <option value="__outro__">Outro…</option>
+                  </select>
                   <button class="btn btn-xs btn-success" type="submit"><i class="bi bi-check2 me-1"></i>Marcar pago</button>
                   {% endif %}
                 </form>
@@ -156,6 +171,14 @@
             <td>
               {% if t.origem == 'offline' %}<span class="pill pill-blue">{{ APP_MARCA }}</span>
               {% else %}<span class="pill pill-gray">importado</span>{% endif %}
+            </td>
+            <td onclick="event.stopPropagation()">
+              {% if t.id %}
+              <form method="post" action="{{ url_for('apagar_ticket', ticket_id=t.id) }}" class="d-inline"
+                    onsubmit="return confirm('Apagar este ticket? Essa ação não pode ser desfeita.')">
+                <button class="btn btn-xs btn-outline-danger" type="submit" title="Apagar ticket"><i class="bi bi-trash"></i></button>
+              </form>
+              {% endif %}
             </td>
           </tr>
           {% endfor %}

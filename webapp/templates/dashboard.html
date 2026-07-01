@@ -28,40 +28,48 @@
 <!-- Cards de métricas -->
 <div class="row g-3 mb-3">
   <div class="col-md-3 col-6">
-    <div class="stat">
+    <a href="{{ url_for('clientes') }}" class="text-decoration-none text-reset">
+    <div class="stat" style="cursor:pointer">
       <div class="top">
         <div><div class="lbl">Clientes</div><div class="num text-azul">{{ stats.clientes }}</div></div>
         <div class="ico ico-azul"><i class="bi bi-people-fill"></i></div>
       </div>
       <div class="foot text-success"><i class="bi bi-arrow-up-short"></i> base ativa de tutores</div>
     </div>
+    </a>
   </div>
   <div class="col-md-3 col-6">
-    <div class="stat">
+    <a href="{{ url_for('clientes') }}" class="text-decoration-none text-reset">
+    <div class="stat" style="cursor:pointer">
       <div class="top">
         <div><div class="lbl">Animais</div><div class="num" style="color:#0891b2">{{ stats.animais }}</div></div>
         <div class="ico ico-ciano"><i class="bi bi-heart-pulse-fill"></i></div>
       </div>
       <div class="foot text-muted"><i class="bi bi-clipboard2-pulse"></i> prontuários registrados</div>
     </div>
+    </a>
   </div>
   <div class="col-md-3 col-6">
-    <div class="stat">
+    <a href="{{ url_for('financeiro', mes=filtro.mes, dia=filtro.dia) }}" class="text-decoration-none text-reset">
+    <div class="stat" style="cursor:pointer">
       <div class="top">
         <div><div class="lbl">Recebido</div><div class="num text-success">R$ {{ brl(fin.total_recebido) }}</div></div>
         <div class="ico ico-verde"><i class="bi bi-cash-coin"></i></div>
       </div>
       <div class="foot text-success"><i class="bi bi-check-circle"></i> {{ fin.qtd_pagos }} tickets pagos</div>
     </div>
+    </a>
   </div>
   <div class="col-md-3 col-6">
-    <div class="stat">
+    <a href="{{ url_for('financeiro', mes=filtro.mes, dia=filtro.dia) }}" class="text-decoration-none text-reset">
+    <div class="stat" style="cursor:pointer">
       <div class="top">
         <div><div class="lbl">A receber</div><div class="num text-danger">R$ {{ brl(fin.total_pendente) }}</div></div>
         <div class="ico ico-amber"><i class="bi bi-clock-history"></i></div>
       </div>
       <div class="foot text-muted"><i class="bi bi-hourglass-split"></i> {{ fin.qtd_pendentes }} pendentes</div>
     </div>
+    </a>
   </div>
 </div>
 
@@ -84,13 +92,13 @@
       <div class="card-body">
         <div class="chart">
           {% for m in fin.fluxo %}
-          <div class="col">
+          <a class="col text-decoration-none text-reset" href="{{ url_for('financeiro', mes=m.mes_key) }}"
+             style="cursor:pointer" title="{{ m.label }} — R$ {{ brl(m.valor) }} (clique para ver no Financeiro)">
             <div class="cv">{% if m.valor > 0 %}{{ (m.valor/1000)|round(1) }}k{% endif %}</div>
-            <div class="bar {% if loop.last %}now{% endif %}"
-                 style="height: {{ (m.valor / fin.fluxo_max * 100) if fin.fluxo_max else 0 }}%"
-                 title="R$ {{ brl(m.valor) }}"></div>
+            <div class="bar {% if m.mes_key == filtro.mes %}now{% endif %}"
+                 style="height: {{ (m.valor / fin.fluxo_max * 100) if fin.fluxo_max else 0 }}%"></div>
             <div class="cl">{{ m.label }}</div>
-          </div>
+          </a>
           {% endfor %}
         </div>
       </div>

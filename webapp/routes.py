@@ -64,6 +64,26 @@ SECOES = [
 
 ENDPOINTS_PUBLICOS = {"login", "solicitar_redefinicao", "redefinir_senha", "static"}
 
+
+def parse_receita_itens(texto):
+    """Cada linha vira um item no formato 'nome --- quantidade --- posologia'.
+
+    Os campos são separados por '---'. Campos ausentes ficam vazios. Receitas
+    antigas (só o nome, sem '---') continuam funcionando: viram só o nome.
+    """
+    itens = []
+    for linha in (texto or "").splitlines():
+        linha = linha.strip()
+        if not linha:
+            continue
+        partes = [p.strip() for p in linha.split("---")]
+        itens.append({
+            "nome":  partes[0],
+            "qtd":   partes[1] if len(partes) > 1 else "",
+            "instr": partes[2] if len(partes) > 2 else "",
+        })
+    return itens
+
 CONSULTA_FIELDS = [
     "consultation_date",
     "is_return",
@@ -349,11 +369,21 @@ def register_routes(app):
         if novo_status not in {"paid", "pending", "cancelled", "draft"}:
             flash("Status inválido para o ticket.", "warning")
             return redirect(request.referrer or url_for("financeiro"))
+        forma_pagamento = (request.form.get("forma_pagamento") or "").strip()
         try:
-            db.atualizar_status_ticket(ticket_id, novo_status)
+            db.atualizar_status_ticket(ticket_id, novo_status, forma_pagamento)
             flash("Status do ticket atualizado.", "success")
         except Exception as exc:
             flash(f"Não foi possível atualizar o ticket: {exc}", "danger")
+        return redirect(request.referrer or url_for("financeiro"))
+
+    @app.route("/ticket/<ticket_id>/apagar", methods=["POST"])
+    def apagar_ticket(ticket_id):
+        try:
+            db.apagar_ticket(ticket_id)
+            flash("Ticket apagado.", "success")
+        except Exception as exc:
+            flash(f"Não foi possível apagar o ticket: {exc}", "danger")
         return redirect(request.referrer or url_for("financeiro"))
 
     @app.route("/atendimento")
@@ -472,6 +502,15 @@ def register_routes(app):
             return redirect(url_for("cliente", id_cliente=id_cliente))
         return render_template("novo_animal.html", cliente=cliente_dados,
                                id_cliente=id_cliente, form={})
+
+    @app.route("/clientes/<id_cliente>/animais/<id_animal>/apagar", methods=["POST"])
+    def apagar_animal(id_cliente, id_animal):
+        try:
+            nome = db.apagar_animal(id_animal)
+            flash(f"Animal '{nome}' apagado.", "success")
+        except Exception as exc:
+            flash(str(exc), "danger")
+        return redirect(url_for("cliente", id_cliente=id_cliente))
 
     # ─── Registros médicos ────────────────────────────────────────────────────
     def _render_consulta_form(consulta, cliente, animal, consultas_anteriores=None):
@@ -620,11 +659,12 @@ def register_routes(app):
                     v = float(val.replace(",", ".") or 0)
                     q = int(qtd or 1)
                     d = float(desc_val.replace(",", ".") or 0)
-                    sub = (v * q) - d
+                    bruto_item = v * q          # bruto da linha (sem desconto)
+                    sub = bruto_item - d        # subtotal da linha (já com desconto)
                     if tp == "produto":
-                        total_prod += sub
+                        total_prod += bruto_item
                     else:
-                        total_svc += sub
+                        total_svc += bruto_item
                     total_desc += d
                     itens.append({"descricao": desc, "tipo": tp, "qtd": q,
                                   "valor": f"{v:.2f}".replace(".", ","),
@@ -798,8 +838,10 @@ def register_routes(app):
         animais = db.get_animais_cliente(receita["id_cliente"])
         animal  = next((a for a in animais
                         if str(a.get("id_animal") or a.get("id", "")) == str(receita["id_animal"])), {})
-        receita["oral_itens"]   = [l.strip() for l in (receita.get("uso_oral") or "").splitlines() if l.strip()]
-        receita["topico_itens"] = [l.strip() for l in (receita.get("uso_topico") or "").splitlines() if l.strip()]
+        if animal:
+            animal = {**animal, "idade": _idade_texto(animal.get("nascimento"))}
+        receita["oral_itens"]   = parse_receita_itens(receita.get("uso_oral"))
+        receita["topico_itens"] = parse_receita_itens(receita.get("uso_topico"))
         return render_template(
             "receita_print.html",
             **pdf_context(
@@ -819,8 +861,10 @@ def register_routes(app):
         animais = db.get_animais_cliente(receita["id_cliente"])
         animal  = next((a for a in animais
                         if str(a.get("id_animal") or a.get("id", "")) == str(receita["id_animal"])), {})
-        receita["oral_itens"]   = [l.strip() for l in (receita.get("uso_oral") or "").splitlines() if l.strip()]
-        receita["topico_itens"] = [l.strip() for l in (receita.get("uso_topico") or "").splitlines() if l.strip()]
+        if animal:
+            animal = {**animal, "idade": _idade_texto(animal.get("nascimento"))}
+        receita["oral_itens"]   = parse_receita_itens(receita.get("uso_oral"))
+        receita["topico_itens"] = parse_receita_itens(receita.get("uso_topico"))
         return render_pdf_response(
             "receita_print.html",
             f"receita-{receita_id}.pdf",

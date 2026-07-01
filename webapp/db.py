@@ -1623,16 +1623,21 @@ def buscar_clientes_paginado(q="", limite=50, offset=0):
     where_sql = ""
     params = []
     if q:
-        where_sql = "where lower(coalesce(name, '')) like lower(%s)"
-        params.append(f"%{q}%")
+        like = f"%{q}%"
+        where_sql = """where lower(coalesce(c.name, '')) like lower(%s)
+                    or coalesce(c.cpf, '') like %s
+                    or exists (select 1 from public.animals a
+                                where a.client_id = c.id
+                                  and lower(coalesce(a.name, '')) like lower(%s))"""
+        params.extend([like, like, like])
 
     with _pg_conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 f"""
                 with filtered as (
-                    select *, count(*) over() as total_count
-                      from public.clients
+                    select c.*, count(*) over() as total_count
+                      from public.clients c
                       {where_sql}
                 )
                 select *
@@ -1791,7 +1796,7 @@ def get_registros_animal(id_cliente, id_animal, secao):
     ]
 
 
-def atualizar_status_ticket(ticket_id, status):
+def atualizar_status_ticket(ticket_id, status, payment_method=None):
     if not _pg_enabled():
         raise RuntimeError("Atualização de status do ticket disponível apenas no Postgres.")
     status = (status or "").strip().lower()
@@ -1800,11 +1805,16 @@ def atualizar_status_ticket(ticket_id, status):
     ticket = _resolve_ticket_row(ticket_id)
     if not ticket:
         raise ValueError("Ticket não encontrado.")
+    # Só faz sentido registrar forma de pagamento quando está pago.
+    # Ao voltar para pendente/cancelado, limpamos a forma de pagamento.
+    metodo = (payment_method or "").strip() or None
+    if status != "paid":
+        metodo = None
     with _pg_conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "update public.tickets set status = %s where id = %s returning id",
-                (status, ticket["id"]),
+                "update public.tickets set status = %s, payment_method = %s where id = %s returning id",
+                (status, metodo, ticket["id"]),
             )
             row = cur.fetchone()
         conn.commit()
@@ -2477,6 +2487,7 @@ def get_tickets_cliente(id_cliente):
             "total_liquido": f'{float(r.get("net_total") or 0):.2f}'.replace(".", ","),
             "status": r.get("status") or "",
             "pago": (r.get("status") or "").lower() == "paid",
+            "forma_pagamento": r.get("payment_method") or "",
             "numero": str(r["id"]),
             "origem": "postgres",
         })
@@ -2508,6 +2519,38 @@ def apagar_cliente(id_cliente):
             cur.execute("delete from public.clients where id = %s", (client["id"],))
         conn.commit()
     return client.get("name") or str(client["id"])
+
+
+def apagar_ticket(ticket_id):
+    """Apaga um ticket e seus itens (ticket_items cai em cascata)."""
+    if not _pg_enabled():
+        raise ValueError("A exclusão de ticket só está disponível no banco Supabase.")
+    row = _resolve_ticket_row(ticket_id)
+    if not row:
+        raise ValueError("Ticket não encontrado.")
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("delete from public.tickets where id = %s", (row["id"],))
+        conn.commit()
+    return str(row.get("id"))
+
+
+def apagar_animal(id_animal):
+    """Apaga um animal e seus prontuários (consultas, vacinas etc. em cascata).
+
+    Tickets e receitas são preservados (o vínculo com o animal vira nulo) para
+    não perder o histórico financeiro.
+    """
+    if not _pg_enabled():
+        raise ValueError("A exclusão de animal só está disponível no banco Supabase.")
+    animal = _resolve_animal_pg(id_animal)
+    if not animal:
+        raise ValueError("Animal não encontrado.")
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("delete from public.animals where id = %s", (animal["id"],))
+        conn.commit()
+    return animal.get("name") or str(animal["id"])
 
 
 def salvar_receita(dados):
@@ -2844,7 +2887,11 @@ def resumo_financeiro(inicio=None, fim=None):
     )
     nomes_mes = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
     fluxo = [
-        {"label": f"{nomes_mes[int(r['mes'])]}/{str(int(r['ano']))[2:]}", "valor": round(float(r.get("valor") or 0), 2)}
+        {
+            "label": f"{nomes_mes[int(r['mes'])]}/{str(int(r['ano']))[2:]}",
+            "valor": round(float(r.get("valor") or 0), 2),
+            "mes_key": f"{int(r['ano']):04d}-{int(r['mes']):02d}",
+        }
         for r in fluxo_rows
     ]
     return {
@@ -2882,6 +2929,7 @@ def ultimos_tickets(limite=15, inicio=None, fim=None):
             "valor": float(r.get("net_total") or 0),
             "pago": (r.get("status") or "").lower() == "paid",
             "status": r.get("status") or "",
+            "forma_pagamento": r.get("payment_method") or "",
             "cliente": r.get("client_name") or "",
             "animal": r.get("animal_name") or "",
             "numero": str(r["id"]),
@@ -2983,7 +3031,11 @@ def dashboard_overview(inicio=None, fim=None):
 
     nomes_mes = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
     fluxo = [
-        {"label": f"{nomes_mes[int(r['mes'])]}/{str(int(r['ano']))[2:]}", "valor": round(float(r.get("valor") or 0), 2)}
+        {
+            "label": f"{nomes_mes[int(r['mes'])]}/{str(int(r['ano']))[2:]}",
+            "valor": round(float(r.get("valor") or 0), 2),
+            "mes_key": f"{int(r['ano']):04d}-{int(r['mes']):02d}",
+        }
         for r in fluxo_rows
     ]
     total_geral = float(fin_row.get("total_geral") or 0)
@@ -3008,6 +3060,7 @@ def dashboard_overview(inicio=None, fim=None):
             "valor": float(r.get("net_total") or 0),
             "pago": (r.get("status") or "").lower() == "paid",
             "status": r.get("status") or "",
+            "forma_pagamento": r.get("payment_method") or "",
             "cliente": r.get("client_name") or "",
             "animal": r.get("animal_name") or "",
             "numero": str(r["id"]),

@@ -231,9 +231,10 @@
       .stat .num { font-size: 1.5rem; }
     }
 
-    /* telas bem pequenas: esconde o campo de busca do topo */
+    /* telas bem pequenas: mantém a busca visível, escondendo o título pra dar espaço */
     @media (max-width: 480px) {
-      .topbar .search { display: none; }
+      .topbar .pg-tit { display: none; }
+      .topbar .search { flex: 1 1 auto; }
     }
   </style>
   {% block head %}{% endblock %}
@@ -313,7 +314,7 @@
   <div class="d-flex align-items-center gap-2">
     <form class="search" action="{{ url_for('clientes') }}" method="get">
       <i class="bi bi-search"></i>
-      <input name="q" placeholder="Buscar cliente, animal ou ticket..."
+      <input name="q" placeholder="Buscar cliente, animal ou CPF..."
              value="{{ request.args.get('q','') if request.endpoint=='clientes' else '' }}">
     </form>
     <button class="tb-icon" type="button" title="Notificações"><i class="bi bi-bell"></i><span class="dot"></span></button>
