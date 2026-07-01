@@ -9,6 +9,8 @@
 -- conforme a base cresce e acelera as páginas de cliente, financeiro e dashboard.
 
 -- ─── Chaves estrangeiras (joins e filtros por dono) ─────────────────────────
+create extension if not exists pg_trgm;
+
 create index if not exists idx_animals_client_id            on public.animals(client_id);
 
 create index if not exists idx_tickets_client_id            on public.tickets(client_id);
@@ -57,6 +59,7 @@ create index if not exists idx_appointments_date            on public.appointmen
 -- ─── Busca/ordenção de clientes por nome (lista /clientes) ──────────────────
 -- A listagem usa `order by lower(name)`; o índice abaixo cobre essa ordenação.
 create index if not exists idx_clients_lower_name           on public.clients(lower(name));
+create index if not exists idx_clients_lower_name_trgm      on public.clients using gin (lower(name) gin_trgm_ops);
 
 -- Resolução de registros legados (importação CSV) por chave legada.
 create index if not exists idx_animals_legacy_animal_id     on public.animals(legacy_animal_id);

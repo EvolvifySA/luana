@@ -1092,6 +1092,7 @@ def _map_animal_row(row):
         castrado_label = "SIM"
     elif castrado is False:
         castrado_label = "NÃO"
+    birth_date = row.get("birth_date")
     return {
         "id_animal": str(row["id"]),
         "id_cliente": str(row["client_id"]),
@@ -1100,7 +1101,7 @@ def _map_animal_row(row):
         "especie": row.get("species") or "",
         "raca": row.get("breed") or "",
         "sexo": row.get("sex") or "",
-        "nascimento": row.get("birth_date").isoformat() if row.get("birth_date") else "",
+        "nascimento": birth_date.isoformat() if hasattr(birth_date, "isoformat") else (birth_date or ""),
         "pelagem": row.get("coat") or "",
         "chip": row.get("chip") or "",
         "castrado": castrado,
@@ -1647,6 +1648,55 @@ def buscar_clientes_paginado(q="", limite=50, offset=0):
     rows = [_map_client_row(r) for r in raw_rows]
 
     return rows, total
+
+
+def buscar_clientes_com_animais(q="", limite=20, offset=0):
+    """Retorna clientes e animais em uma unica ida ao Postgres para atendimento."""
+    if not _pg_enabled():
+        return [
+            {"cliente": c, "animais": _LEGACY_get_animais_cliente(c["id_cliente"])}
+            for c in _LEGACY_buscar_clientes(q=q, limite=limite, offset=offset)
+        ]
+
+    where_sql = ""
+    params = []
+    if q:
+        where_sql = "where lower(coalesce(c.name, '')) like lower(%s)"
+        params.append(f"%{q}%")
+
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                with filtered as (
+                    select c.*
+                      from public.clients c
+                      {where_sql}
+                     order by lower(c.name)
+                     limit %s offset %s
+                )
+                select f.*,
+                       coalesce(animais.rows, '[]'::jsonb) as animais
+                  from filtered f
+                  left join lateral (
+                    select jsonb_agg(to_jsonb(a) order by lower(a.name)) as rows
+                      from public.animals a
+                     where a.client_id = f.id
+                  ) animais on true
+                 order by lower(f.name)
+                """,
+                tuple(params + [limite, offset]),
+            )
+            raw_rows = cur.fetchall()
+
+    achados = []
+    for row in raw_rows:
+        animais = row.pop("animais") or []
+        achados.append({
+            "cliente": _map_client_row(row),
+            "animais": [_map_animal_row(a) for a in animais],
+        })
+    return achados
 
 
 def get_cliente(id_cliente):

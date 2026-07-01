@@ -362,9 +362,7 @@ def register_routes(app):
         acao = request.args.get("acao", "ticket")
         achados = []
         if q:
-            for c in db.buscar_clientes(q=q, limite=20):
-                achados.append({"cliente": c,
-                                "animais": db.get_animais_cliente(c["id_cliente"])})
+            achados = db.buscar_clientes_com_animais(q=q, limite=20)
         return render_template("atendimento.html", q=q, acao=acao, achados=achados)
 
     # ─── Clientes ─────────────────────────────────────────────────────────────
