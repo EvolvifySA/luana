@@ -67,6 +67,12 @@
     .rx-assinatura { position: absolute; top: 241mm; right: 20mm; width: 74mm; text-align: center; color: var(--wine); font-size: 11px; line-height: 1.25; }
     .rx-assinatura .nome { font-weight: 700; }
 
+    /* Rodapé inferior esquerdo (identificação da veterinária) */
+    .rx-rodape { position: absolute; bottom: 8mm; left: 16mm; right: 60mm; color: var(--wine); font-size: 11px; }
+    .rx-rodape .rod-tit { font-weight: 700; display: flex; align-items: center; white-space: nowrap; }
+    .rx-rodape .rod-tit::after { content: ''; flex: 1; border-top: 1px solid #7a5566; margin-left: 8px; }
+    .rx-rodape .rod-nome { margin-top: 2px; }
+
     @media print {
       .no-print { display: none !important; }
       .folha { margin: 0; }
@@ -225,6 +231,11 @@
   <div class="rx-assinatura">
     <div class="nome">{{ receita.veterinario }}</div>
     <div>Médica veterinária{% if receita.crmv %}<br>{{ receita.crmv }}{% endif %}</div>
+  </div>
+
+  <div class="rx-rodape">
+    <div class="rod-tit">Médica veterinária</div>
+    <div class="rod-nome">Nome: Luana M. Feitosa Barroso CRMV: 02956/PB</div>
   </div>
 </div>
 {% endif %}
