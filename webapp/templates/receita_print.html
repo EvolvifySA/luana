@@ -10,6 +10,20 @@
     :root { --wine: #5a1a33; }
     body { font-family: 'Quicksand', Arial, sans-serif; font-size: 13px; color: #1a1a1a; }
 
+    /* A folha do papel timbrado é desenhada em 210x272mm (proporção da arte);
+       a via "Controle Especial" usa A4 cheio com margem normal. O @page precisa
+       bater com o tamanho real do conteúdo, senão a margem padrão do
+       navegador/impressora corta um pedaço da folha ao imprimir ou gerar o PDF. */
+    {% if receita.tipo == 'especial' %}
+    @page { size: A4; margin: 12mm; }
+    {% else %}
+    @page { size: A4; margin: 0; }
+    {% endif %}
+
+    /* Sem isso o Chrome só imprime cor/fundo se a pessoa marcar manualmente
+       "Gráficos de segundo plano" no diálogo de impressão — aqui força sempre. */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+
     /* ---- Receituário de Controle Especial (layout simples, sem arte) ---- */
     .plain { padding: 25px; font-family: Arial, sans-serif; }
     .plain .header { text-align: center; margin-bottom: 6px; }
@@ -28,9 +42,12 @@
     .plain .assinatura .linha { border-top: 1px solid #333; width: 250px; margin: 0 auto 4px; }
 
     /* ---- Receituário com papel timbrado da marca (arte de fundo) ---- */
-    /* A arte tem proporção 1545x1999 (~1.294); a folha usa a mesma p/ não distorcer. */
+    /* A folha ocupa a folha A4 inteira (297mm); a arte (proporção 1545x1999, ~272mm
+       de altura no desenho original) estica ~9% na vertical p/ preencher a página
+       sem sobrar espaço em branco embaixo — por isso os deslocamentos abaixo (top/
+       bottom em mm) já vêm escalados pelo mesmo fator (297/272 ≈ 1,092). */
     .folha {
-      width: 210mm; height: 272mm; margin: 0 auto; position: relative;
+      width: 210mm; height: 297mm; margin: 0 auto; position: relative;
       background-size: 100% 100%; background-repeat: no-repeat; background-position: top center;
       color: var(--wine); overflow: hidden;
     }
@@ -38,19 +55,19 @@
     .folha .val { color: #2b2b2b; font-weight: 500; }
 
     /* Contato no topo (esquerda) — o logo e "Atendimento" já vêm na arte, à direita */
-    .rx-contato { position: absolute; top: 20mm; left: 20mm; font-size: 12px; color: var(--wine); font-weight: 600; }
+    .rx-contato { position: absolute; top: 22mm; left: 20mm; font-size: 12px; color: var(--wine); font-weight: 600; }
     .rx-contato span { margin-right: 16mm; }
 
     /* Blocos posicionados sobre as linhas da arte */
     .bloco { position: absolute; left: 16mm; right: 14mm; }
-    .bloco-resp   { top: 35mm; }
-    .bloco-animal { top: 65mm; }
+    .bloco-resp   { top: 38mm; }
+    .bloco-animal { top: 71mm; }
     .secao { font-weight: 700; color: var(--wine); font-size: 13px; margin-bottom: 3px; }
     .campo-linha { display: flex; gap: 8px; margin: 3px 0; font-size: 12px; }
     .campo-linha > div { flex: 1; }
 
     /* Corpo: data + medicamentos */
-    .rx-corpo { position: absolute; top: 89mm; left: 16mm; right: 14mm; bottom: 20mm; }
+    .rx-corpo { position: absolute; top: 97mm; left: 16mm; right: 14mm; bottom: 22mm; }
     .data-receita { font-weight: 700; color: var(--wine); }
     .uso-titulo { text-align: center; font-size: 14px; font-weight: 700;
                   text-decoration: underline; color: var(--wine); margin: 18px 0 14px; }
@@ -63,12 +80,16 @@
     .obs { margin-top: 16px; font-size: 12px; color: #2b2b2b; white-space: pre-line; }
     .obs b { color: var(--wine); }
 
+    /* Observações sempre ancoradas perto do rodapé da folha, não coladas nos medicamentos */
+    .rx-obs { position: absolute; left: 16mm; right: 14mm; bottom: 40mm; font-size: 12px; color: #2b2b2b; white-space: pre-line; }
+    .rx-obs b { color: var(--wine); }
+
     /* Assinatura — o NOME fica ABAIXO da linha da arte (o espaço acima é p/ assinar à mão) */
-    .rx-assinatura { position: absolute; top: 241mm; right: 20mm; width: 74mm; text-align: center; color: var(--wine); font-size: 11px; line-height: 1.25; }
+    .rx-assinatura { position: absolute; top: 263mm; right: 20mm; width: 74mm; text-align: center; color: var(--wine); font-size: 11px; line-height: 1.25; }
     .rx-assinatura .nome { font-weight: 700; }
 
     /* Rodapé inferior esquerdo (identificação da veterinária) */
-    .rx-rodape { position: absolute; bottom: 8mm; left: 16mm; right: 60mm; color: var(--wine); font-size: 11px; }
+    .rx-rodape { position: absolute; bottom: 9mm; left: 16mm; right: 60mm; color: var(--wine); font-size: 11px; }
     .rx-rodape .rod-tit { font-weight: 700; display: flex; align-items: center; white-space: nowrap; }
     .rx-rodape .rod-tit::after { content: ''; flex: 1; border-top: 1px solid #7a5566; margin-left: 8px; }
     .rx-rodape .rod-nome { margin-top: 2px; }
@@ -223,10 +244,11 @@
     {% if not receita.oral_itens and not receita.topico_itens %}
     <p style="text-align:center;color:#999;margin:30px 0;">Nenhum medicamento informado.</p>
     {% endif %}
-
-    {% if receita.observacao %}<div class="obs"><b>Observações:</b>
-{{ receita.observacao }}</div>{% endif %}
   </div>
+
+  {% if receita.observacao %}
+  <div class="rx-obs"><b>Observações:</b> {{ receita.observacao }}</div>
+  {% endif %}
 
   <div class="rx-assinatura">
     <div class="nome">{{ receita.veterinario }}</div>

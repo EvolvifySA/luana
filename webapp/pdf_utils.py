@@ -75,6 +75,12 @@ def _html_to_pdf_bytes(html: str) -> bytes:
             return page.pdf(
                 format="A4",
                 print_background=True,
+                # Se o template define @page { size } (ex.: receita_print.html),
+                # usa o tamanho/margem do CSS em vez do formato/margem abaixo —
+                # senão a margem "genérica" corta/desloca o conteúdo posicionado
+                # em mm relativo à folha real. Templates sem @page continuam
+                # caindo no fallback A4 + 12mm de sempre.
+                prefer_css_page_size=True,
                 margin={"top": "12mm", "right": "12mm", "bottom": "12mm", "left": "12mm"},
             )
         finally:
