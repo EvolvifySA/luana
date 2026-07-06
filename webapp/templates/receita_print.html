@@ -89,9 +89,8 @@
     .rx-assinatura .nome { font-weight: 700; }
 
     /* Rodapé inferior esquerdo (identificação da veterinária) */
-    .rx-rodape { position: absolute; bottom: 9mm; left: 16mm; right: 60mm; color: var(--wine); font-size: 11px; }
-    .rx-rodape .rod-tit { font-weight: 700; display: flex; align-items: center; white-space: nowrap; }
-    .rx-rodape .rod-tit::after { content: ''; flex: 1; border-top: 1px solid #7a5566; margin-left: 8px; }
+    .rx-rodape { position: absolute; bottom: 18mm; left: 16mm; right: 60mm; color: var(--wine); font-size: 11px; }
+    .rx-rodape .rod-tit { font-weight: 700; white-space: nowrap; }
     .rx-rodape .rod-nome { margin-top: 2px; }
 
     @media print {
@@ -108,6 +107,9 @@
   </button>
   <a href="{{ url_for('receita_pdf', receita_id=receita.id) }}" target="_blank" style="padding:8px 16px;background:#198754;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;display:inline-block;">
     Baixar PDF
+  </a>
+  <a href="{{ url_for('editar_receita', receita_id=receita.id) }}" style="padding:8px 16px;background:#fd7e14;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;display:inline-block;">
+    Editar
   </a>
   <button onclick="window.history.back()" style="padding:8px 16px;background:#6c757d;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;">
     Voltar
@@ -171,7 +173,7 @@
       {% if animal.get('sexo') %}<b>Sexo:</b> {{ animal.sexo }} &nbsp;{% endif %}
       {% if animal.get('pelagem') %}<b>Pelagem:</b> {{ animal.pelagem }}{% endif %}
     </p>
-    {% if animal.get('nascimento') %}<p><b>Nascimento:</b> {{ animal.nascimento }}</p>{% endif %}
+    {% if animal.get('nascimento') %}<p><b>Nascimento:</b> {{ animal.nascimento | data_br }}</p>{% endif %}
   </fieldset>
 
   <div class="titulo-receita">Receituário de Controle Especial</div>
@@ -210,7 +212,7 @@
     </div>
     <div class="campo-linha">
       <div style="flex:2.2"><span class="rot">Endereço:</span> <span class="val">{{ cliente.endereco if cliente else '' }}</span></div>
-      <div style="flex:1.5"><span class="rot">Nº:</span> <span class="val"></span></div>
+      <div style="flex:1.5"><span class="rot">Nº:</span> <span class="val">{{ cliente.numero if cliente else '' }}</span></div>
       <div style="flex:1.6"><span class="rot">CEP:</span> <span class="val">{{ cliente.cep if cliente else '' }}</span></div>
     </div>
     <div class="campo-linha">
@@ -230,7 +232,7 @@
     </div>
     <div class="campo-linha">
       <div><span class="rot">Pelagem:</span> <span class="val">{{ animal.get('pelagem','') }}</span></div>
-      <div><span class="rot">Peso:</span> <span class="val">{{ animal.get('peso','') }}</span></div>
+      <div><span class="rot">Peso:</span> <span class="val">{{ animal.get('peso','') }}{% if animal.get('peso') %} kg{% endif %}</span></div>
       <div><span class="rot">Idade:</span> <span class="val">{{ animal.get('idade','') }}</span></div>
       <div><span class="rot">Castrado:</span> <span class="val">{{ animal.get('castrado_label','') or animal.get('castrado','') }}</span></div>
     </div>

@@ -23,9 +23,9 @@
     </div>
   </div>
   <div class="d-flex gap-2">
-    <a href="{{ url_for('novo_animal', id_cliente=id_cliente) }}" class="btn btn-success"><i class="bi bi-plus-lg me-1"></i>Novo Animal</a>
+    <a href="{{ url_for('novo_animal', id_cliente=id_cliente) }}" target="_blank" class="btn btn-success"><i class="bi bi-plus-lg me-1"></i>Novo Animal</a>
     {% if cliente %}
-    <a href="{{ url_for('editar_cliente', id_cliente=id_cliente) }}" class="btn btn-outline-primary"><i class="bi bi-pencil me-1"></i>Editar</a>
+    <a href="{{ url_for('editar_cliente', id_cliente=id_cliente) }}" target="_blank" class="btn btn-outline-primary"><i class="bi bi-pencil me-1"></i>Editar</a>
     {% endif %}
     {% if cliente %}
     <form method="post" action="{{ url_for('apagar_cliente', id_cliente=id_cliente) }}" class="d-inline"
@@ -46,7 +46,7 @@
           {% if cliente.cpf %}<div class="info-row"><div class="ic"><i class="bi bi-credit-card-2-front"></i></div><div><div class="k">CPF</div><div class="v">{{ cliente.cpf }}</div></div></div>{% endif %}
           {% if cliente.celular %}<div class="info-row"><div class="ic"><i class="bi bi-whatsapp"></i></div><div><div class="k">Celular / WhatsApp</div><div class="v">{{ cliente.celular }}</div></div></div>{% endif %}
           {% if cliente.email %}<div class="info-row"><div class="ic"><i class="bi bi-envelope"></i></div><div><div class="k">E-mail</div><div class="v">{{ cliente.email }}</div></div></div>{% endif %}
-          {% if cliente.endereco %}<div class="info-row"><div class="ic"><i class="bi bi-geo-alt"></i></div><div><div class="k">Endereço</div><div class="v">{{ cliente.endereco }}</div></div></div>{% endif %}
+          {% if cliente.endereco %}<div class="info-row"><div class="ic"><i class="bi bi-geo-alt"></i></div><div><div class="k">Endereço</div><div class="v">{{ cliente.endereco }}{% if cliente.numero %}, {{ cliente.numero }}{% endif %}</div></div></div>{% endif %}
           {% if cliente.bairro %}<div class="info-row"><div class="ic"><i class="bi bi-geo"></i></div><div><div class="k">Bairro</div><div class="v">{{ cliente.bairro }}</div></div></div>{% endif %}
           {% if cliente.cidade %}<div class="info-row"><div class="ic"><i class="bi bi-buildings"></i></div><div><div class="k">Cidade</div><div class="v">{{ cliente.cidade }}</div></div></div>{% endif %}
           {% if cliente.estado %}<div class="info-row"><div class="ic"><i class="bi bi-flag"></i></div><div><div class="k">Estado</div><div class="v">{{ cliente.estado }}</div></div></div>{% endif %}
@@ -85,7 +85,7 @@
                 {% if tem %}
                 <div class="row g-1 mt-1" style="font-size:.8rem">
                   {% if animal.get('sexo') %}<div class="col-6"><span class="text-muted">Sexo</span> <span class="fw-semibold">{{ animal.sexo }}</span></div>{% endif %}
-                  {% if animal.get('nascimento') %}<div class="col-6"><span class="text-muted">Nascimento</span> <span class="fw-semibold">{{ animal.nascimento }}</span></div>{% endif %}
+                  {% if animal.get('nascimento') %}<div class="col-6"><span class="text-muted">Nascimento</span> <span class="fw-semibold">{{ animal.nascimento | data_br }}</span></div>{% endif %}
                   {% if animal.get('pelagem') %}<div class="col-6"><span class="text-muted">Pelagem</span> <span class="fw-semibold">{{ animal.pelagem }}</span></div>{% endif %}
                   {% if animal.get('chip') and animal.chip != 'Não informado' %}<div class="col-6"><span class="text-muted">Chip</span> <span class="fw-semibold">{{ animal.chip }}</span></div>{% endif %}
                 </div>
@@ -96,8 +96,11 @@
                   <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=aid, secao=sk) }}"
                      class="btn btn-xs {% if sk == secao_ativa and aid == id_animal_ativo %}btn-primary{% else %}btn-light-soft{% endif %}">{{ sl }}</a>
                   {% endfor %}
-                  <a href="{{ url_for('nova_consulta', id_cliente=id_cliente, id_animal=aid) }}" class="btn btn-xs btn-outline-success"><i class="bi bi-clipboard2-pulse"></i> Nova Consulta</a>
-                  <a href="{{ url_for('novo_ticket', id_cliente=id_cliente, id_animal=aid) }}" class="btn btn-xs btn-outline-primary"><i class="bi bi-receipt"></i> Novo Ticket</a>
+                  <a href="{{ url_for('nova_consulta', id_cliente=id_cliente, id_animal=aid) }}" target="_blank" class="btn btn-xs btn-outline-success"><i class="bi bi-clipboard2-pulse"></i> Nova Consulta</a>
+                  <a href="{{ url_for('novo_ticket', id_cliente=id_cliente, id_animal=aid) }}" target="_blank" class="btn btn-xs btn-outline-primary"><i class="bi bi-receipt"></i> Novo Ticket</a>
+                  {% if aid %}
+                  <a href="{{ url_for('editar_animal', id_cliente=id_cliente, id_animal=aid) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-pencil"></i> Editar</a>
+                  {% endif %}
                   {% if aid %}
                   <form method="post" action="{{ url_for('apagar_animal', id_cliente=id_cliente, id_animal=aid) }}" class="d-inline"
                         onsubmit="return confirm('Apagar o animal {{ nome_a }} e seus prontuários (consultas, vacinas, exames)?\n\nOs tickets e receitas no histórico financeiro são mantidos.\n\nEsta ação não pode ser desfeita.');">
@@ -218,7 +221,7 @@
   <div class="card-header d-flex justify-content-between align-items-center">
     <span><i class="bi bi-capsule me-2 text-azul"></i>Receituário emitido</span>
     {% if id_animal_ativo %}
-    <a href="{{ url_for('nova_receita', id_cliente=id_cliente, id_animal=id_animal_ativo) }}" class="btn btn-sm btn-success"><i class="bi bi-plus me-1"></i>Emitir receita</a>
+    <a href="{{ url_for('nova_receita', id_cliente=id_cliente, id_animal=id_animal_ativo) }}" target="_blank" class="btn btn-sm btn-success"><i class="bi bi-plus me-1"></i>Emitir receita</a>
     {% endif %}
   </div>
   <div class="card-body p-0">
@@ -233,7 +236,10 @@
             <td class="text-muted">{{ r.data or '—' }}</td>
             <td>{{ r.veterinario or '—' }}</td>
             <td class="text-muted">{{ r.observacao or '—' }}</td>
-            <td class="text-end"><a href="{{ url_for('receita_pdf', receita_id=r.id) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-printer"></i> PDF</a></td>
+            <td class="text-end">
+              <a href="{{ url_for('editar_receita', receita_id=r.id) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-pencil"></i> Editar</a>
+              <a href="{{ url_for('receita_pdf', receita_id=r.id) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-printer"></i> PDF</a>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -254,9 +260,9 @@
   <div class="card-header d-flex justify-content-between align-items-center">
     <span><i class="bi bi-clipboard2-pulse me-2 text-azul"></i>{{ secao_label }}</span>
     {% if secao_ativa == 'consultas' %}
-    <a href="{{ url_for('nova_consulta', id_cliente=id_cliente, id_animal=id_animal_ativo) }}" class="btn btn-sm btn-success"><i class="bi bi-plus me-1"></i>Nova consulta</a>
+    <a href="{{ url_for('nova_consulta', id_cliente=id_cliente, id_animal=id_animal_ativo) }}" target="_blank" class="btn btn-sm btn-success"><i class="bi bi-plus me-1"></i>Nova consulta</a>
     {% else %}
-    <a href="{{ url_for('novo_registro', id_cliente=id_cliente, id_animal=id_animal_ativo, tipo=secao_ativa.rstrip('s')) }}" class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>Adicionar</a>
+    <a href="{{ url_for('novo_registro', id_cliente=id_cliente, id_animal=id_animal_ativo, tipo=secao_ativa) }}" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>Adicionar</a>
     {% endif %}
   </div>
   <div class="card-body p-0">
@@ -284,7 +290,7 @@
             {% if secao_ativa == 'consultas' %}
             <td class="text-nowrap">
               {% if reg.get('id') %}
-              <a href="{{ url_for('editar_consulta', consulta_id=reg.get('id')) }}" class="btn btn-xs btn-light-soft"><i class="bi bi-pencil"></i></a>
+              <a href="{{ url_for('editar_consulta', consulta_id=reg.get('id')) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-pencil"></i></a>
               <a href="{{ url_for('consulta_pdf', consulta_id=reg.get('id')) }}" target="_blank" class="btn btn-xs btn-light-soft"><i class="bi bi-printer"></i></a>
               {% endif %}
             </td>

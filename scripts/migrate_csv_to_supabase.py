@@ -140,11 +140,11 @@ def _upsert_client(cur, row: dict[str, str], source: str, batch_id: str, row_num
         "mobile": (row.get("celular") or row.get("CPF") or "").strip() or None,
         "phone": (row.get("telefone") or "").strip() or None,
         "email": (row.get("email") or "").strip() or None,
-        "address": (row.get("endereco") or row.get("endereÃ§o") or row.get("Nome") or "").strip() or None,
+        "address": (row.get("endereço") or row.get("endereco") or row.get("endereÃ§o") or row.get("Nome") or "").strip() or None,
         "city": (row.get("cidade") or "").strip() or None,
         "zip_code": (row.get("cep") or "").strip() or None,
         "birth_date": _parse_date(row.get("nascimento") or ""),
-        "notes": (row.get("observacao") or row.get("observaÃ§Ã£o") or "").strip() or None,
+        "notes": (row.get("observação") or row.get("observacao") or row.get("observaÃ§Ã£o") or "").strip() or None,
         "source": _slug_source(source),
         "source_payload": row,
     }

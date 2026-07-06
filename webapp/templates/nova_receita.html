@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Nova Receita{% endblock %}
-{% block topbar_title %}Emitir Receituário{% endblock %}
+{% block title %}{{ 'Editar Receita' if editando else 'Nova Receita' }}{% endblock %}
+{% block topbar_title %}{{ 'Editar Receituário' if editando else 'Emitir Receituário' }}{% endblock %}
 
 {% block content %}
 {% set nome_animal = animal.get('nome_animal') or animal.get('nome') or '' %}
 
 <div class="d-flex align-items-center mb-3">
-  <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=id_animal, secao='receituario') }}"
+  <a href="{{ url_for('ver_receita', receita_id=receita.id) if editando else url_for('cliente', id_cliente=id_cliente, animal=id_animal, secao='receituario') }}"
      class="text-muted text-decoration-none me-3">
     <i class="bi bi-arrow-left"></i>
   </a>
   <h4 class="fw-bold mb-0">
-    Emitir Receituário
+    {{ 'Editar Receituário' if editando else 'Emitir Receituário' }}
     <small class="text-muted fw-normal">— {{ cliente.nome if cliente else '' }} / {{ nome_animal }}</small>
   </h4>
 </div>
@@ -135,9 +135,9 @@
 
   <div class="d-flex gap-2" style="max-width:800px">
     <button type="submit" class="btn btn-primary px-4">
-      <i class="bi bi-printer me-1"></i>Gerar Receita
+      {% if editando %}<i class="bi bi-check2 me-1"></i>Salvar alterações{% else %}<i class="bi bi-printer me-1"></i>Gerar Receita{% endif %}
     </button>
-    <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=id_animal, secao='receituario') }}"
+    <a href="{{ url_for('ver_receita', receita_id=receita.id) if editando else url_for('cliente', id_cliente=id_cliente, animal=id_animal, secao='receituario') }}"
        class="btn btn-outline-secondary">Cancelar</a>
   </div>
 </form>
@@ -200,6 +200,12 @@ function carregarMeds(containerId, texto) {
 addMed('oralRows');
 addMed('topicoRows');
 
+{% if editando and receita %}
+// Modo edição: preenche o formulário com a receita já existente
+preencherReceita({{ receita | tojson }});
+{% if receita.data %}document.getElementById('dataReceita').value = {{ receita.data | tojson }};{% endif %}
+{% endif %}
+
 // Ao enviar, joga os blocos nos campos ocultos que o servidor lê
 document.getElementById('receitaForm').addEventListener('submit', function () {
   document.getElementById('uso_oral').value   = compilarMeds('oralRows');
@@ -209,7 +215,7 @@ document.getElementById('receitaForm').addEventListener('submit', function () {
 // Preenche a receita inteira a partir de um objeto salvo
 function preencherReceita(r) {
   if (!r) return;
-  const f = document.forms[0];
+  const f = document.getElementById('receitaForm');
   if (r.tipo) { f.tipo.value = (r.tipo === 'especial' || r.tipo === 'special') ? 'especial' : 'simples'; }
   if (r.veterinario) f.veterinario.value = r.veterinario;
   if (r.crmv)        f.crmv.value = r.crmv;

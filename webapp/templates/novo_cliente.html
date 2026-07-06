@@ -43,25 +43,30 @@
 
       <div class="sec-label"><i class="bi bi-geo-alt"></i>Endereço</div>
       <div class="row g-3">
-        <div class="col-12">
-          <label class="form-label">Endereço</label>
-          <div class="input-ico"><i class="bi bi-geo-alt"></i><input type="text" name="endereco" class="form-control" value="{{ form.get('endereco','') }}" placeholder="Rua, número, bairro"></div>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Bairro</label>
-          <input type="text" name="bairro" class="form-control" value="{{ form.get('bairro','') }}" placeholder="Bancários">
-        </div>
         <div class="col-md-4">
           <label class="form-label">CEP</label>
-          <input type="text" name="cep" class="form-control" value="{{ form.get('cep','') }}" placeholder="00000-000">
+          <input type="text" name="cep" id="cepInput" class="form-control" value="{{ form.get('cep','') }}" placeholder="00000-000">
+          <div class="form-text" id="cepStatus">Preenche endereço, bairro, cidade e estado sozinho.</div>
+        </div>
+        <div class="col-md-8">
+          <label class="form-label">Endereço</label>
+          <div class="input-ico"><i class="bi bi-geo-alt"></i><input type="text" name="endereco" id="enderecoInput" class="form-control" value="{{ form.get('endereco','') }}" placeholder="Rua"></div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Número</label>
+          <input type="text" name="numero" class="form-control" value="{{ form.get('numero','') }}" placeholder="Nº">
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Bairro</label>
+          <input type="text" name="bairro" id="bairroInput" class="form-control" value="{{ form.get('bairro','') }}" placeholder="Bancários">
         </div>
         <div class="col-md-4">
           <label class="form-label">Cidade</label>
-          <input type="text" name="cidade" class="form-control" value="{{ form.get('cidade','') }}" placeholder="João Pessoa">
+          <input type="text" name="cidade" id="cidadeInput" class="form-control" value="{{ form.get('cidade','') }}" placeholder="João Pessoa">
         </div>
         <div class="col-md-4">
           <label class="form-label">Estado</label>
-          <select name="estado" class="form-select">
+          <select name="estado" id="estadoInput" class="form-select">
             {% for uf in ['PB','PE','RN','CE','AL','SE','BA','SP','RJ','MG','Outro'] %}
             <option {% if form.get('estado')==uf %}selected{% endif %}>{{ uf }}</option>
             {% endfor %}
@@ -80,4 +85,37 @@
     </div>
   </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Busca o endereço pelo CEP (ViaCEP) e preenche os campos sozinho.
+const cepInput = document.getElementById('cepInput');
+const cepStatus = document.getElementById('cepStatus');
+
+async function buscarCep() {
+  const cep = cepInput.value.replace(/\D/g, '');
+  if (cep.length !== 8) return;
+  cepStatus.textContent = 'Buscando endereço...';
+  try {
+    const resp = await fetch('https://viacep.com.br/ws/' + cep + '/json/');
+    const dados = await resp.json();
+    if (dados.erro) {
+      cepStatus.textContent = 'CEP não encontrado — preencha manualmente.';
+      return;
+    }
+    document.getElementById('enderecoInput').value = dados.logradouro || document.getElementById('enderecoInput').value;
+    document.getElementById('bairroInput').value = dados.bairro || document.getElementById('bairroInput').value;
+    document.getElementById('cidadeInput').value = dados.localidade || document.getElementById('cidadeInput').value;
+    const estadoSel = document.getElementById('estadoInput');
+    if (dados.uf && [...estadoSel.options].some(o => o.value === dados.uf)) {
+      estadoSel.value = dados.uf;
+    }
+    cepStatus.textContent = 'Endereço preenchido pelo CEP — confira o número.';
+  } catch (e) {
+    cepStatus.textContent = 'Não consegui buscar o CEP agora — preencha manualmente.';
+  }
+}
+cepInput.addEventListener('blur', buscarCep);
+</script>
 {% endblock %}

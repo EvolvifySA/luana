@@ -87,6 +87,7 @@ create index if not exists idx_clients_cpf on public.clients (cpf);
 
 alter table public.clients add column if not exists neighborhood text;
 alter table public.clients add column if not exists state text;
+alter table public.clients add column if not exists number text;
 
 -- ---------------------------------------------------------------------
 -- Animais

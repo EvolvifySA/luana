@@ -332,7 +332,7 @@ def get_registros_animal(id_cliente, id_animal, secao):
     conn  = _get_novos_db()
     novos = conn.execute(
         "SELECT * FROM registros_novos WHERE tipo = ? AND id_cliente = ? AND id_animal = ?",
-        (secao.rstrip("s"), str(id_cliente), str(id_animal))
+        (secao, str(id_cliente), str(id_animal))
     ).fetchall()
     conn.close()
 
@@ -572,6 +572,21 @@ def get_receitas_animal(id_cliente, id_animal):
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def atualizar_receita(receita_id, dados):
+    conn = _get_novos_db()
+    _init_receitas_table(conn)
+    conn.execute("""
+        UPDATE receitas
+           SET tipo=:tipo, data=:data, veterinario=:veterinario, crmv=:crmv,
+               uso_oral=:uso_oral, uso_topico=:uso_topico, observacao=:observacao
+         WHERE id=:id
+    """, {**dados, "id": receita_id})
+    conn.commit()
+    conn.close()
+    log.info(f"Receita atualizada: id={receita_id}")
+    return receita_id
 
 
 # ─── USUÁRIOS / LOGIN ─────────────────────────────────────────────────────────
@@ -849,6 +864,7 @@ _LEGACY_get_tickets_cliente = get_tickets_cliente
 _LEGACY_salvar_receita = salvar_receita
 _LEGACY_get_receita = get_receita
 _LEGACY_get_receitas_animal = get_receitas_animal
+_LEGACY_atualizar_receita = atualizar_receita
 _LEGACY_resumo_financeiro = resumo_financeiro
 _LEGACY_ultimos_tickets = ultimos_tickets
 
@@ -1070,6 +1086,7 @@ def _map_client_row(row):
         "telefone": row.get("phone") or "",
         "email": row.get("email") or "",
         "endereco": row.get("address") or "",
+        "numero": row.get("number") or "",
         "cidade": row.get("city") or "",
         "bairro": row.get("neighborhood") or "",
         "estado": row.get("state") or "",
@@ -1796,6 +1813,42 @@ def get_registros_animal(id_cliente, id_animal, secao):
     ]
 
 
+def _data_para_ordenar(valor):
+    """Converte 'DD/MM/AAAA' ou 'AAAA-MM-DD' numa data comparável (a mais antiga possível se não der pra ler)."""
+    from datetime import date, datetime
+    if isinstance(valor, date):
+        return valor
+    txt = str(valor or "").strip()
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(txt, fmt).date()
+        except ValueError:
+            continue
+    return date.min
+
+
+def get_peso_atual(id_cliente, id_animal):
+    """Peso mais recente do animal (última pesagem), pra usar em receitas/consultas.
+
+    Junta pesagens manuais e as importadas do histórico (csv/Supabase) e pega
+    a de data mais recente — não existe um campo fixo de "peso" no cadastro do
+    animal, só o histórico de pesagens mesmo.
+    """
+    registros = get_registros_animal(id_cliente, id_animal, "pesagens")
+    melhor_data = None
+    peso = ""
+    for r in registros:
+        bruto = r.get("Peso") or r.get("descricao") or r.get("peso") or ""
+        bruto = str(bruto).strip()
+        if not bruto:
+            continue
+        data_ord = _data_para_ordenar(r.get("Data da pesagem") or r.get("data"))
+        if melhor_data is None or data_ord > melhor_data:
+            melhor_data = data_ord
+            peso = bruto
+    return peso
+
+
 def atualizar_status_ticket(ticket_id, status, payment_method=None):
     if not _pg_enabled():
         raise RuntimeError("Atualização de status do ticket disponível apenas no Postgres.")
@@ -1828,8 +1881,8 @@ def inserir_cliente(dados):
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
-                insert into public.clients (name, cpf, mobile, phone, email, address, city, neighborhood, state, zip_code, birth_date, notes, source)
-                values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'manual')
+                insert into public.clients (name, cpf, mobile, phone, email, address, number, city, neighborhood, state, zip_code, birth_date, notes, source)
+                values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'manual')
                 returning id
                 """,
                 (
@@ -1839,6 +1892,7 @@ def inserir_cliente(dados):
                     dados.get("telefone"),
                     dados.get("email"),
                     dados.get("endereco"),
+                    dados.get("numero"),
                     dados.get("cidade"),
                     dados.get("bairro"),
                     dados.get("estado"),
@@ -1865,7 +1919,7 @@ def atualizar_cliente(id_cliente, dados):
                 """
                 update public.clients set
                     name = %s, cpf = %s, mobile = %s, phone = %s, email = %s,
-                    address = %s, city = %s, neighborhood = %s, state = %s,
+                    address = %s, number = %s, city = %s, neighborhood = %s, state = %s,
                     zip_code = %s, birth_date = %s, notes = %s
                 where id = %s
                 """,
@@ -1876,6 +1930,7 @@ def atualizar_cliente(id_cliente, dados):
                     dados.get("telefone"),
                     dados.get("email"),
                     dados.get("endereco"),
+                    dados.get("numero"),
                     dados.get("cidade"),
                     dados.get("bairro"),
                     dados.get("estado"),
@@ -1921,6 +1976,39 @@ def inserir_animal(dados):
     return new_id
 
 
+def atualizar_animal(id_animal, dados):
+    """Atualiza os dados de um animal existente (apenas Supabase)."""
+    if not _pg_enabled():
+        raise ValueError("A edição de animal só está disponível no banco Supabase.")
+    animal = _resolve_animal_pg(id_animal)
+    if not animal:
+        raise ValueError("Animal não encontrado.")
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                update public.animals set
+                    name = %s, species = %s, breed = %s, sex = %s,
+                    birth_date = %s, coat = %s, chip = %s, castrado = %s, notes = %s
+                where id = %s
+                """,
+                (
+                    dados.get("nome"),
+                    dados.get("especie"),
+                    dados.get("raca"),
+                    dados.get("sexo"),
+                    dados.get("nascimento") or None,
+                    dados.get("pelagem"),
+                    dados.get("chip"),
+                    _parse_bool(dados.get("castrado")),
+                    dados.get("observacao"),
+                    animal["id"],
+                ),
+            )
+        conn.commit()
+    return str(animal["id"])
+
+
 def inserir_registro(dados):
     if not _pg_enabled():
         return _LEGACY_inserir_registro(dados)
@@ -1928,10 +2016,14 @@ def inserir_registro(dados):
     animal = _resolve_animal_pg(dados.get("id_animal"))
     if not client or not animal:
         raise ValueError("Cliente ou animal não encontrado para registrar histórico.")
-    secao = (dados.get("tipo") or "").rstrip("s")
+    # OBS: "secao" vem exatamente igual à chave usada nas abas do cliente
+    # (plural: consultas/vacinas/exames/cirurgias/pesagens) — NÃO tentar
+    # "desplularizar" com rstrip('s'): "pesagens" vira "pesagen" (não
+    # "pesagem"), o que fazia toda pesagem cair silenciosamente em anotações.
+    secao = dados.get("tipo") or ""
     with _pg_conn() as conn:
         with conn.cursor() as cur:
-            if secao == "consulta":
+            if secao == "consultas":
                 cur.execute(
                     """
                     insert into public.consultations (client_id, animal_id, consultation_date, veterinarian, notes, source)
@@ -1939,7 +2031,7 @@ def inserir_registro(dados):
                     """,
                     (client["id"], animal["id"], dados.get("data") or None, dados.get("veterinario"), dados.get("observacao") or dados.get("descricao")),
                 )
-            elif secao == "vacina":
+            elif secao == "vacinas":
                 cur.execute(
                     """
                     insert into public.vaccinations (client_id, animal_id, vaccine_name, applied_at, veterinarian, notes, source)
@@ -1947,7 +2039,7 @@ def inserir_registro(dados):
                     """,
                     (client["id"], animal["id"], dados.get("descricao"), dados.get("data") or None, dados.get("veterinario"), dados.get("observacao")),
                 )
-            elif secao == "exame":
+            elif secao == "exames":
                 cur.execute(
                     """
                     insert into public.exams (client_id, animal_id, exam_date, exam_type, requester, notes, source, source_url, requires_browser)
@@ -1955,7 +2047,7 @@ def inserir_registro(dados):
                     """,
                     (client["id"], animal["id"], dados.get("data") or None, dados.get("descricao"), dados.get("veterinario"), dados.get("observacao"), dados.get("arquivo") or None),
                 )
-            elif secao == "cirurgia":
+            elif secao == "cirurgias":
                 cur.execute(
                     """
                     insert into public.surgeries (client_id, animal_id, surgery_date, title, veterinarian, notes, source)
@@ -1963,7 +2055,7 @@ def inserir_registro(dados):
                     """,
                     (client["id"], animal["id"], dados.get("data") or None, dados.get("descricao"), dados.get("veterinario"), dados.get("observacao")),
                 )
-            elif secao == "pesagem":
+            elif secao == "pesagens":
                 cur.execute(
                     """
                     insert into public.weights (client_id, animal_id, weighed_at, weight, recorded_by, notes, source)
@@ -2690,6 +2782,56 @@ def get_receitas_animal(id_cliente, id_animal):
         _build_receita(r, itens_por_receita.get(r["id"], []), client_map, animal_map)
         for r in rows
     ]
+
+
+def atualizar_receita(receita_id, dados):
+    if not _pg_enabled():
+        return _LEGACY_atualizar_receita(receita_id, dados)
+    receita = _resolve_receita_row(receita_id)
+    if not receita:
+        raise ValueError("Receita não encontrada.")
+    from datetime import datetime
+    prescribed_at = dados.get("data")
+    prescribed_at = datetime.strptime(prescribed_at, "%d/%m/%Y").date() if prescribed_at else date.today()
+    tipo_db = "controlled" if (dados.get("tipo") or "").lower() in ("especial", "special", "controlled") else "simple"
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                update public.prescriptions
+                   set prescription_type=%s, prescribed_at=%s, veterinarian=%s, crmv=%s, notes=%s
+                 where id=%s
+                """,
+                (tipo_db, prescribed_at, dados.get("veterinario"), dados.get("crmv"),
+                 dados.get("observacao"), receita["id"]),
+            )
+            cur.execute("delete from public.prescription_items where prescription_id=%s", (receita["id"],))
+            oral = [l.strip() for l in (dados.get("uso_oral") or "").splitlines() if l.strip()]
+            topico = [l.strip() for l in (dados.get("uso_topico") or "").splitlines() if l.strip()]
+            seq = 1
+            for line in oral:
+                cur.execute(
+                    """
+                    insert into public.prescription_items
+                      (prescription_id, category, sequence, medication, quantity, instructions, raw_text, source)
+                    values (%s,'oral',%s,%s,%s,%s,%s,'manual')
+                    """,
+                    (receita["id"], seq, line, None, None, line),
+                )
+                seq += 1
+            seq = 1
+            for line in topico:
+                cur.execute(
+                    """
+                    insert into public.prescription_items
+                      (prescription_id, category, sequence, medication, quantity, instructions, raw_text, source)
+                    values (%s,'topical',%s,%s,%s,%s,%s,'manual')
+                    """,
+                    (receita["id"], seq, line, None, None, line),
+                )
+                seq += 1
+        conn.commit()
+    return str(receita["id"])
 
 
 # ─── Receitas personalizadas (modelos reutilizáveis em qualquer cliente) ──────

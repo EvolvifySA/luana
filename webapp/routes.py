@@ -413,7 +413,7 @@ def register_routes(app):
         if request.method == "POST":
             dados = {k: request.form.get(k, "").strip()
                      for k in ("nome", "cpf", "celular", "telefone",
-                               "email", "endereco", "bairro", "cidade", "estado", "cep", "nascimento", "observacao")}
+                               "email", "endereco", "numero", "bairro", "cidade", "estado", "cep", "nascimento", "observacao")}
             if not dados["nome"]:
                 flash("Nome é obrigatório.", "danger")
                 return render_template("novo_cliente.html", form=dados)
@@ -427,7 +427,7 @@ def register_routes(app):
         if request.method == "POST":
             dados = {k: request.form.get(k, "").strip()
                      for k in ("nome", "cpf", "celular", "telefone",
-                               "email", "endereco", "bairro", "cidade", "estado", "cep", "nascimento", "observacao")}
+                               "email", "endereco", "numero", "bairro", "cidade", "estado", "cep", "nascimento", "observacao")}
             if not dados["nome"]:
                 flash("Nome é obrigatório.", "danger")
                 return render_template("novo_cliente.html", form=dados,
@@ -502,6 +502,39 @@ def register_routes(app):
             return redirect(url_for("cliente", id_cliente=id_cliente))
         return render_template("novo_animal.html", cliente=cliente_dados,
                                id_cliente=id_cliente, form={})
+
+    @app.route("/clientes/<id_cliente>/animais/<id_animal>/editar", methods=["GET", "POST"])
+    def editar_animal(id_cliente, id_animal):
+        cliente_dados = db.get_cliente(id_cliente)
+        if request.method == "POST":
+            dados = {k: request.form.get(k, "").strip()
+                     for k in ("nome", "especie", "raca", "sexo",
+                               "nascimento", "pelagem", "chip", "castrado", "observacao")}
+            if not dados["nome"]:
+                flash("Nome do animal é obrigatório.", "danger")
+                return render_template("novo_animal.html", cliente=cliente_dados,
+                                       id_cliente=id_cliente, id_animal=id_animal,
+                                       form=dados, editando=True)
+            try:
+                db.atualizar_animal(id_animal, dados)
+                flash(f"Animal '{dados['nome']}' atualizado!", "success")
+                return redirect(url_for("cliente", id_cliente=id_cliente, animal=id_animal))
+            except Exception as exc:
+                flash(str(exc), "danger")
+                return render_template("novo_animal.html", cliente=cliente_dados,
+                                       id_cliente=id_cliente, id_animal=id_animal,
+                                       form=dados, editando=True)
+        animais = db.get_animais_cliente(id_cliente)
+        animal  = next((a for a in animais
+                        if str(a.get("id_animal") or a.get("id", "")) == str(id_animal)), None)
+        if not animal:
+            flash("Animal não encontrado.", "warning")
+            return redirect(url_for("cliente", id_cliente=id_cliente))
+        form = {**animal, "nome": animal.get("nome_animal") or animal.get("nome", ""),
+                "castrado": "sim" if animal.get("castrado") is True else ("nao" if animal.get("castrado") is False else "")}
+        return render_template("novo_animal.html", cliente=cliente_dados,
+                               id_cliente=id_cliente, id_animal=id_animal,
+                               form=form, editando=True)
 
     @app.route("/clientes/<id_cliente>/animais/<id_animal>/apagar", methods=["POST"])
     def apagar_animal(id_cliente, id_animal):
@@ -612,8 +645,11 @@ def register_routes(app):
                methods=["GET", "POST"])
     def novo_registro(id_cliente, id_animal):
         cliente_dados = db.get_cliente(id_cliente)
-        tipo = request.args.get("tipo", "consulta")
-        if request.method == "GET" and tipo == "consulta":
+        # "tipo" aqui é sempre a mesma chave (plural) usada em SECOES/nas abas
+        # do cliente — ex.: "pesagens", "vacinas". Nada de tirar/adicionar "s"
+        # na mão: isso já causou registros de pesagem indo parar em anotações.
+        tipo = request.args.get("tipo", "consultas")
+        if request.method == "GET" and tipo == "consultas":
             return redirect(url_for("nova_consulta", id_cliente=id_cliente, id_animal=id_animal))
         if request.method == "POST":
             tipo  = request.form.get("tipo", tipo)
@@ -631,7 +667,7 @@ def register_routes(app):
             db.inserir_registro(dados)
             flash("Registro adicionado!", "success")
             return redirect(url_for("cliente", id_cliente=id_cliente,
-                                    animal=id_animal, secao=tipo + "s"))
+                                    animal=id_animal, secao=tipo))
         return render_template("novo_registro.html", cliente=cliente_dados,
                                id_cliente=id_cliente, id_animal=id_animal,
                                tipo=tipo, tipos=SECOES)
@@ -774,6 +810,36 @@ def register_routes(app):
                                receitas_anteriores=receitas_anteriores,
                                receitas_personalizadas=receitas_personalizadas)
 
+    @app.route("/receita/<receita_id>/editar", methods=["GET", "POST"])
+    def editar_receita(receita_id):
+        receita = db.get_receita(receita_id)
+        if not receita:
+            flash("Receita não encontrada.", "warning")
+            return redirect(url_for("dashboard"))
+        id_cliente = receita["id_cliente"]
+        id_animal  = receita["id_animal"]
+        cliente_dados = db.get_cliente(id_cliente)
+        animais = db.get_animais_cliente(id_cliente)
+        animal  = next((a for a in animais
+                        if str(a.get("id_animal") or a.get("id", "")) == str(id_animal)), {})
+        if request.method == "POST":
+            dados = {
+                "tipo":        request.form.get("tipo", "simples"),
+                "data":        request.form.get("data", date.today().strftime("%d/%m/%Y")),
+                "veterinario": request.form.get("veterinario", "").strip(),
+                "crmv":        request.form.get("crmv", "").strip(),
+                "uso_oral":    request.form.get("uso_oral", "").strip(),
+                "uso_topico":  request.form.get("uso_topico", "").strip(),
+                "observacao":  request.form.get("observacao", "").strip(),
+            }
+            db.atualizar_receita(receita_id, dados)
+            flash("Receita atualizada!", "success")
+            return redirect(url_for("ver_receita", receita_id=receita_id))
+        return render_template("nova_receita.html", cliente=cliente_dados,
+                               animal=animal, id_cliente=id_cliente, id_animal=id_animal,
+                               receitas_anteriores=None, receitas_personalizadas=None,
+                               editando=True, receita=receita)
+
     @app.route("/receitas-personalizadas")
     def receitas_personalizadas():
         return render_template("receitas_personalizadas.html",
@@ -839,7 +905,8 @@ def register_routes(app):
         animal  = next((a for a in animais
                         if str(a.get("id_animal") or a.get("id", "")) == str(receita["id_animal"])), {})
         if animal:
-            animal = {**animal, "idade": _idade_texto(animal.get("nascimento"))}
+            animal = {**animal, "idade": _idade_texto(animal.get("nascimento")),
+                      "peso": db.get_peso_atual(receita["id_cliente"], receita["id_animal"])}
         receita["oral_itens"]   = parse_receita_itens(receita.get("uso_oral"))
         receita["topico_itens"] = parse_receita_itens(receita.get("uso_topico"))
         return render_template(
@@ -862,7 +929,8 @@ def register_routes(app):
         animal  = next((a for a in animais
                         if str(a.get("id_animal") or a.get("id", "")) == str(receita["id_animal"])), {})
         if animal:
-            animal = {**animal, "idade": _idade_texto(animal.get("nascimento"))}
+            animal = {**animal, "idade": _idade_texto(animal.get("nascimento")),
+                      "peso": db.get_peso_atual(receita["id_cliente"], receita["id_animal"])}
         receita["oral_itens"]   = parse_receita_itens(receita.get("uso_oral"))
         receita["topico_itens"] = parse_receita_itens(receita.get("uso_topico"))
         return render_pdf_response(

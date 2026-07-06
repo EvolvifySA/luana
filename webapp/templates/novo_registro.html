@@ -13,7 +13,7 @@
           <label class="form-label">Tipo de registro</label>
           <select name="tipo" class="form-select">
             {% for key, label in tipos %}
-            <option value="{{ key.rstrip('s') }}" {% if key.rstrip('s') == tipo %}selected{% endif %}>{{ label }}</option>
+            <option value="{{ key }}" {% if key == tipo %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </div>
@@ -22,8 +22,9 @@
           <input type="date" name="data" class="form-control" id="dataReg">
         </div>
         <div class="col-12">
-          <label class="form-label">Descrição / Nome</label>
-          <input type="text" name="descricao" class="form-control" placeholder="Ex.: Vacina V8, Consulta de rotina...">
+          <label class="form-label" id="descricaoLabel">Descrição / Nome</label>
+          <input type="text" name="descricao" id="descricaoInput" class="form-control" placeholder="Ex.: Vacina V8, Consulta de rotina...">
+          <div class="form-text" id="descricaoAjuda"></div>
         </div>
         <div class="col-12">
           <label class="form-label">Veterinário responsável</label>
@@ -49,5 +50,28 @@
 {% endblock %}
 
 {% block scripts %}
-<script>document.getElementById('dataReg').valueAsDate = new Date();</script>
+<script>
+document.getElementById('dataReg').valueAsDate = new Date();
+
+// No tipo "Pesagens" o valor da "Descrição" É o peso (kg) — deixa isso óbvio.
+function ajustarCampoDescricao() {
+  const tipoSel = document.querySelector('select[name="tipo"]');
+  const label = document.getElementById('descricaoLabel');
+  const input = document.getElementById('descricaoInput');
+  const ajuda = document.getElementById('descricaoAjuda');
+  if (tipoSel.value === 'pesagens') {
+    label.textContent = 'Peso (kg)';
+    input.placeholder = 'Ex.: 10.5';
+    input.setAttribute('inputmode', 'decimal');
+    ajuda.textContent = 'Só o número — vira o peso registrado deste animal.';
+  } else {
+    label.textContent = 'Descrição / Nome';
+    input.placeholder = 'Ex.: Vacina V8, Consulta de rotina...';
+    input.removeAttribute('inputmode');
+    ajuda.textContent = '';
+  }
+}
+document.querySelector('select[name="tipo"]').addEventListener('change', ajustarCampoDescricao);
+ajustarCampoDescricao();
+</script>
 {% endblock %}

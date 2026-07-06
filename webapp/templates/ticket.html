@@ -114,7 +114,7 @@
       <td>{{ ticket.especie or '—' }}</td>
       <td>{{ ticket.raca or '—' }}</td>
       <td>{{ ticket.pelagem or '—' }}</td>
-      <td>{{ ticket.nascimento or '—' }}</td>
+      <td>{{ (ticket.nascimento | data_br) if ticket.nascimento else '—' }}</td>
       <td>{{ ticket.sexo or '—' }}</td>
       <td>{{ ticket.chip or 'Não informado' }}</td>
     </tr>

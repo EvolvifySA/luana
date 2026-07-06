@@ -84,15 +84,15 @@
       &nbsp; <b>Pelagem:</b> {{ animal.pelagem or '—' }}
       &nbsp; <b>Peso:</b> {{ consulta.peso or animal.peso or '—' }} Kg
     </p>
-    <p><b>Nascimento:</b> {{ animal.nascimento or '—' }} &nbsp; <b>Idade:</b> {{ animal_idade or '—' }} &nbsp; <b>Castrado:</b> {{ animal.castrado_label or animal.castrado or '—' }}</p>
+    <p><b>Nascimento:</b> {{ (animal.nascimento | data_br) if animal.nascimento else '—' }} &nbsp; <b>Idade:</b> {{ animal_idade or '—' }} &nbsp; <b>Castrado:</b> {{ animal.castrado_label or animal.castrado or '—' }}</p>
   </div>
 </div>
 
 <div class="box">
   <div class="legend">Dados da Consulta</div>
   <div class="kv">
-    <p><b>Data:</b> {{ consulta.data_da_consulta or '—' }}</p>
-    <p><b>É retorno?</b> {{ 'Sim' if consulta.is_retorno else 'Não' }}{% if consulta.data_retorno %} &nbsp; <b>Retorno:</b> {{ consulta.data_retorno }}{% endif %}</p>
+    <p><b>Data:</b> {{ (consulta.data_da_consulta | data_br) if consulta.data_da_consulta else '—' }}</p>
+    <p><b>É retorno?</b> {{ 'Sim' if consulta.is_retorno else 'Não' }}{% if consulta.data_retorno %} &nbsp; <b>Retorno:</b> {{ consulta.data_retorno | data_br }}{% endif %}</p>
   </div>
 </div>
 

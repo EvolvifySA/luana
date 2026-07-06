@@ -25,7 +25,7 @@
   {% endif %}
 </div>
 
-<form method="post">
+<form method="post" id="consultaForm">
   <input type="hidden" name="id_cliente" value="{{ id_cliente }}">
   <input type="hidden" name="id_animal" value="{{ id_animal }}">
 
@@ -215,7 +215,7 @@ if (selReusarCs) {
     if (this.value === '') return;
     const c = CONSULTAS_ANT[parseInt(this.value, 10)];
     if (!c || !c.valores) return;
-    const f = document.forms[0];
+    const f = document.getElementById('consultaForm');
     Object.entries(c.valores).forEach(([campo, valor]) => {
       const el = f.elements[campo];
       if (el) el.value = valor;
