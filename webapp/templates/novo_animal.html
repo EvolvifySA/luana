@@ -4,7 +4,7 @@
 {% block topbar_sub %}{{ cliente.nome if cliente else '' }}{% endblock %}
 
 {% block content %}
-<form method="post" style="max-width:760px;margin:0 auto">
+<form method="post" id="animalForm" style="max-width:760px;margin:0 auto">
   <div class="card">
     <div class="card-header"><i class="bi bi-heart-pulse me-2 text-azul"></i>{{ 'Editar Animal' if editando else 'Novo Animal' }}{% if cliente %} <span class="text-muted fw-normal">— {{ cliente.nome }}</span>{% endif %}</div>
     <div class="card-body p-4">
@@ -118,7 +118,7 @@ btnExata.addEventListener('click', function () { setModoNascimento('exata'); });
 btnAprox.addEventListener('click', function () { setModoNascimento('aproximada'); });
 setModoNascimento('exata');
 
-document.querySelector('form').addEventListener('submit', function () {
+document.getElementById('animalForm').addEventListener('submit', function () {
   if (!idadeWrap.classList.contains('d-none')) {
     const anos  = parseInt(idadeAnosInput.value, 10)  || 0;
     const meses = parseInt(idadeMesesInput.value, 10) || 0;
