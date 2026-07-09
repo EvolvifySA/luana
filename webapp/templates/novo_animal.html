@@ -118,21 +118,28 @@ btnExata.addEventListener('click', function () { setModoNascimento('exata'); });
 btnAprox.addEventListener('click', function () { setModoNascimento('aproximada'); });
 setModoNascimento('exata');
 
-document.getElementById('animalForm').addEventListener('submit', function () {
+document.getElementById('animalForm').addEventListener('submit', function (ev) {
   if (!idadeWrap.classList.contains('d-none')) {
     const anos  = parseInt(idadeAnosInput.value, 10)  || 0;
     const meses = parseInt(idadeMesesInput.value, 10) || 0;
     const dias  = parseInt(idadeDiasInput.value, 10)  || 0;
-    if (anos > 0 || meses > 0 || dias > 0) {
-      const hoje = new Date();
-      hoje.setFullYear(hoje.getFullYear() - anos);
-      hoje.setMonth(hoje.getMonth() - meses);
-      hoje.setDate(hoje.getDate() - dias);
-      const ano = hoje.getFullYear();
-      const mes = String(hoje.getMonth() + 1).padStart(2, '0');
-      const dia = String(hoje.getDate()).padStart(2, '0');
-      nascimentoInput.value = ano + '-' + mes + '-' + dia;
+    if (anos <= 0 && meses <= 0 && dias <= 0) {
+      // Nenhum campo preenchido: sem isso, a data de nascimento ficaria
+      // exatamente como estava antes e pareceria que "não salvou nada".
+      // Avisamos e bloqueamos o envio em vez de falhar em silêncio.
+      ev.preventDefault();
+      alert('Preencha ao menos anos, meses ou dias para calcular a idade aproximada.');
+      idadeAnosInput.focus();
+      return;
     }
+    const hoje = new Date();
+    hoje.setFullYear(hoje.getFullYear() - anos);
+    hoje.setMonth(hoje.getMonth() - meses);
+    hoje.setDate(hoje.getDate() - dias);
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    const dia = String(hoje.getDate()).padStart(2, '0');
+    nascimentoInput.value = ano + '-' + mes + '-' + dia;
   }
 });
 </script>
