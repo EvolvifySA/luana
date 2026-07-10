@@ -21,9 +21,4 @@ if __name__ == "__main__":
     print("=" * 52)
     # host="0.0.0.0" libera o acesso de outros aparelhos na mesma rede (ex: celular)
     # FLASK_DEBUG=1 ativa auto-reload e debugger local.
-    app.run(
-        debug=config.FLASK_DEBUG,
-        use_reloader=config.FLASK_DEBUG,
-        host="0.0.0.0",
-        port=config.FLASK_PORT,
-    )
+    app.run(debug=False, host="0.0.0.0", port=config.FLASK_PORT)
