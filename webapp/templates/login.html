@@ -3,118 +3,524 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Entrar — {{ APP_NOME }} {{ APP_MARCA }}</title>
+  <meta name="theme-color" content="#f1f3f6">
+  <title>Entrar - {{ APP_NOME }} {{ APP_MARCA }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}" rel="stylesheet">
   <style>
-    * { font-family: 'Segoe UI', system-ui, sans-serif; box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; display: flex; }
+    :root {
+      --ink: #1f2937;
+      --subtle: #6b7280;
+      --blue: #4472C4;
+      --blue-soft: #e8edf8;
+      --orange: #4472C4;
+      --orange-soft: rgba(34, 23, 136, 0.1);
+      --border: #d9dfe8;
+      --panel: #ffffff;
+      --bg: #f1f3f6;
+    }
 
-    /* Painel esquerdo (marketing) */
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 12% 18%, rgba(30, 39, 114, 0.05), transparent 16%),
+        radial-gradient(circle at 84% 82%, rgba(253, 116, 1, 0.05), transparent 18%),
+        linear-gradient(180deg, #f7f8fa 0%, #eef1f5 100%);
+      color: var(--ink);
+      font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow-x: hidden;
+    }
+
+    .shell {
+      width: min(calc(100vw - 3rem), 1380px);
+      min-height: min(calc(100vh - 3rem), 920px);
+      margin: 1.5rem auto;
+      border: 1px solid #e4e8ef;
+      border-radius: 34px;
+      background: #ffffff;
+      box-shadow: 0 24px 80px rgba(15, 23, 42, 0.12);
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: minmax(360px, 482px) 1fr;
+    }
+
     .left {
-      flex: 1; background: linear-gradient(150deg, #0a2240 0%, #102f57 45%, #1e5bb8 100%);
-      color: #fff; padding: 3rem 3.5rem; display: flex; flex-direction: column; position: relative; overflow: hidden;
+      background: #fff;
+      padding: 1.9rem 1.8rem 1.6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      border-right: 1px solid #edf1f6;
+      position: relative;
     }
-    .left::after {
-      content: ''; position: absolute; bottom: -120px; right: -80px;
-      width: 360px; height: 360px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(224,169,60,.18), transparent 70%);
+
+    .mobile-hero {
+      display: none;
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      opacity: 0.22;
     }
-    .left .logo { display: flex; align-items: center; gap: .7rem; margin-bottom: auto; }
-    .left .logo .box { width: 46px; height: 46px; background: #fff; border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-    .left .logo .box img { width: 88%; height: 88%; object-fit: contain; }
-    .left .logo .nm { font-size: 1.3rem; font-weight: 800; }
-    .left h1 { font-size: 2.4rem; font-weight: 800; line-height: 1.15; margin: 0 0 1rem; max-width: 460px; }
-    .left .lead { color: #b9cdea; font-size: 1rem; max-width: 420px; line-height: 1.6; margin-bottom: 2.2rem; }
-    .left .feat { display: flex; align-items: center; gap: .9rem; margin-bottom: 1rem; }
-    .left .feat .fi { width: 42px; height: 42px; border-radius: 11px; background: rgba(255,255,255,.1); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; color: #f5b860; }
-    .left .feat span { font-weight: 500; color: #e2ecf9; }
-    .left .copy { color: #6f8fb8; font-size: .78rem; margin-top: auto; }
 
-    /* Painel direito (form) */
-    .right { flex: 0 0 46%; max-width: 560px; background: #fff; display: flex; align-items: center; justify-content: center; padding: 2rem; }
-    .form-wrap { width: 100%; max-width: 360px; }
-    .form-wrap h2 { font-size: 1.7rem; font-weight: 800; color: #0f2e5c; margin-bottom: .25rem; }
-    .form-wrap .sub { color: #64748b; font-size: .9rem; margin-bottom: 1.8rem; }
-    .form-label { font-size: .8rem; font-weight: 600; color: #475569; margin-bottom: .35rem; }
-    .ig { position: relative; margin-bottom: 1.1rem; }
-    .ig i.lead-i { position: absolute; left: .9rem; top: 50%; transform: translateY(-50%); color: #94a3b8; }
-    .ig input { width: 100%; border: 1px solid #dbe3ec; border-radius: 11px; padding: .7rem .9rem .7rem 2.5rem; font-size: .92rem; }
-    .ig input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
-    .ig .toggle { position: absolute; right: .85rem; top: 50%; transform: translateY(-50%); color: #94a3b8; cursor: pointer; background: none; border: none; }
-    .row-opts { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.3rem; font-size: .82rem; }
-    .row-opts a { color: #2563eb; font-weight: 600; }
-    .btn-entrar { width: 100%; background: linear-gradient(135deg, #2563eb, #1e5bb8); border: none; color: #fff; padding: .8rem; font-weight: 700; font-size: .95rem; border-radius: 11px; display: flex; align-items: center; justify-content: center; gap: .5rem; cursor: pointer; }
-    .btn-entrar:hover { background: linear-gradient(135deg, #1d4ed8, #1a4f9e); }
-    .foot-info { text-align: center; color: #94a3b8; font-size: .76rem; margin-top: 1.6rem; }
-    .alerta { background: #e8f1fd; color: #1e5bb8; border-radius: 10px; padding: .7rem .9rem; font-size: .82rem; margin-bottom: 1.2rem; display: flex; align-items: center; gap: .5rem; }
-    .alerta.err { background: #fee2e2; color: #b91c1c; }
+    .mobile-hero::before {
+      content: "";
+      position: absolute;
+      inset: -10% -8% auto -8%;
+      height: 46%;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.1)),
+        url("{{ url_for('static', filename='login-community/login-illustrator.svg') }}") center 18% / contain no-repeat;
+      filter: saturate(0.95);
+      transform: scale(1.04);
+    }
 
-    @media (max-width: 900px) { .left { display: none; } .right { flex: 1; max-width: none; } }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .brand .box {
+      width: 56px;
+      height: 56px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #f7f9ff, #ffffff);
+      border: 1px solid rgba(30, 39, 114, 0.12);
+      box-shadow: 0 8px 18px rgba(30, 39, 114, 0.08);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      flex: 0 0 auto;
+    }
+
+    .brand .box img {
+      width: 78%;
+      height: 78%;
+      object-fit: contain;
+    }
+
+    .brand .name {
+      line-height: 1.08;
+    }
+
+    .brand .name strong {
+      display: block;
+      font-size: 1.14rem;
+      font-weight: 800;
+      color: var(--blue);
+    }
+
+    .brand .name span {
+      display: block;
+      font-size: 0.8rem;
+      color: #6c7482;
+      font-weight: 500;
+    }
+
+    .title {
+      margin: 0.55rem 0 0;
+      color: #3f4755;
+      font-size: 0.92rem;
+      font-weight: 600;
+      text-align: center;
+      letter-spacing: 0.02em;
+    }
+
+    .heading {
+      margin: 0;
+      text-align: center;
+      color: #0f172a;
+      font-size: clamp(2.15rem, 3.1vw, 2.85rem);
+      line-height: 1.02;
+      font-weight: 800;
+      letter-spacing: -0.06em;
+    }
+
+    .sub {
+      margin: 0;
+      text-align: center;
+      color: var(--subtle);
+      font-size: 0.9rem;
+      line-height: 1.55;
+      max-width: 26rem;
+      align-self: center;
+    }
+
+    .alerta {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      border-radius: 12px;
+      padding: 0.82rem 0.92rem;
+      background: #e8f1fd;
+      color: var(--blue);
+      font-size: 0.84rem;
+      line-height: 1.45;
+      border: 1px solid rgba(30, 39, 114, 0.1);
+    }
+
+    .alerta.err {
+      background: #fee2e2;
+      color: #b91c1c;
+      border-color: rgba(185, 28, 28, 0.15);
+    }
+
+    .form {
+      margin-top: 0.3rem;
+      display: grid;
+      gap: 0.95rem;
+    }
+
+    .field {
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .label {
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: #424a59;
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+
+    .input-wrap .icon {
+      position: absolute;
+      left: 0.95rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #8f96a3;
+      pointer-events: none;
+      font-size: 0.92rem;
+    }
+
+    .input-wrap input {
+      width: 100%;
+      height: 3rem;
+      border: 1px solid #dbe2ec;
+      border-radius: 8px;
+      background: #f7f9fc;
+      color: #374151;
+      font-size: 0.85rem;
+      padding: 0 1rem 0 2.75rem;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+    }
+
+    .input-wrap input::placeholder { color: #9aa2b2; }
+
+    .input-wrap input:focus {
+      border-color: rgba(9, 71, 240, 0.8);
+      box-shadow: 0 0 0 4px rgba(253, 116, 1, 0.12);
+      background: #fff;
+    }
+
+    .input-wrap .toggle {
+      position: absolute;
+      right: 0.15rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 2.65rem;
+      height: 2.65rem;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: #8991a1;
+      cursor: pointer;
+    }
+
+    .options {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      font-size: 0.72rem;
+      color: #5f6878;
+      margin-top: -0.1rem;
+    }
+
+    .options label {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      margin: 0;
+      cursor: pointer;
+    }
+
+    .options a {
+      color: var(--blue);
+      font-weight: 500;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .btn-login {
+      height: 3rem;
+      border: 0;
+      border-radius: 8px;
+      background: var(--orange);
+      color: #fff;
+      font-size: 0.92rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      box-shadow: 0 12px 24px rgba(1, 60, 253, 0.3);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    }
+
+    .btn-login:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.01);
+      box-shadow: 0 12px 24px rgba(1, 60, 253, 0.3);
+    }
+
+    .or-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 0.35rem 0 0.15rem;
+      color: #c5c5c5;
+      font-size: 0.78rem;
+      font-weight: 500;
+    }
+
+    .or-row::before,
+    .or-row::after {
+      content: "";
+      height: 1px;
+      flex: 1;
+      background: linear-gradient(90deg, transparent, #e1e4ea, transparent);
+    }
+
+    .btn-outline-orange {
+      height: 3rem;
+      border-radius: 8px;
+      border: 1px solid rgba(1, 39, 253, 0.85);
+      background: transparent;
+      color: var(--orange);
+      font-size: 0.92rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+      text-decoration: none;
+    }
+
+    .btn-outline-orange:hover {
+      background: rgba(1, 39, 253, 0.08);
+      color: #4472C4;
+      transform: translateY(-1px);
+    }
+
+    .side-note {
+      margin-top: auto;
+      text-align: center;
+      color: #9aa2b2;
+      font-size: 0.72rem;
+      line-height: 1.45;
+    }
+
+    .right {
+      position: relative;
+      background:
+        radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.75), transparent 20%),
+        radial-gradient(circle at 60% 50%, rgba(30, 39, 114, 0.03), transparent 28%),
+        #f4f6fa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .right::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0));
+      pointer-events: none;
+    }
+
+    .artwork {
+      position: relative;
+      width: min(100%, 720px);
+      height: min(100%, 700px);
+      display: grid;
+      place-items: center;
+    }
+
+    .stack {
+      position: relative;
+      width: min(78%, 560px);
+      max-width: 560px;
+      aspect-ratio: 1 / 1;
+    }
+
+    .hero-ill {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 18px 35px rgba(15, 23, 42, 0.12));
+    }
+
+    @media (max-width: 1180px) {
+      .shell {
+        width: min(calc(100vw - 2rem), 1380px);
+        min-height: min(calc(100vh - 2rem), 980px);
+        margin: 1rem auto;
+      }
+    }
+
+    @media (max-width: 960px) {
+      body { background: #f1f3f6; }
+      .shell {
+        width: calc(100vw - 1rem);
+        min-height: auto;
+        margin: 0.5rem auto;
+        grid-template-columns: 1fr;
+        border-width: 1px;
+        border-radius: 26px;
+      }
+      .left {
+        order: 1;
+        padding-top: 2rem;
+        padding-bottom: 1.25rem;
+      }
+      .right { display: none; }
+      .mobile-hero { display: block; }
+      .title, .heading, .sub { text-align: center; position: relative; z-index: 1; }
+      .brand, .form, .side-note { position: relative; z-index: 1; }
+      .form {
+        margin-top: auto;
+        padding-top: 1.5rem;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(228, 232, 239, 0.9);
+        border-radius: 22px;
+        padding: 1.2rem;
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+        backdrop-filter: blur(8px);
+      }
+      .sub { max-width: 32rem; }
+    }
+
+    @media (max-width: 640px) {
+      .shell {
+        width: calc(100vw - 0.8rem);
+        margin: 0.4rem auto;
+        border-width: 1px;
+        border-radius: 20px;
+      }
+      .left {
+        padding: 1rem;
+        gap: 0.75rem;
+      }
+      .brand { justify-content: center; margin-bottom: 0.35rem; }
+      .heading { font-size: clamp(1.95rem, 9vw, 2.6rem); }
+      .title { margin-top: 0.25rem; }
+      .sub { max-width: none; font-size: 0.87rem; }
+      .form { padding: 1rem; border-radius: 18px; gap: 0.8rem; }
+      .options { font-size: 0.68rem; }
+    }
   </style>
 </head>
 <body>
-  <div class="left">
-    <div class="logo">
-      <div class="box">
-        <img src="{{ url_for('static', filename='logo.svg') }}" alt=""
-             onerror="this.parentElement.innerHTML='<span style=color:#2563eb;font-weight:800;font-size:1.4rem>E</span>'">
+  <main class="shell">
+    <section class="left">
+      <div class="mobile-hero" aria-hidden="true"></div>
+      <div class="brand">
+        <div class="box">
+          <img src="{{ url_for('static', filename='logo.svg') }}" alt=""
+               onerror="this.parentElement.innerHTML='<span style=color:#4472C4;font-weight:800;font-size:1.2rem>E</span>'">
+        </div>
+        <div class="name">
+          <strong>{{ APP_MARCA }}</strong>
+          <span>{{ APP_NOME }}</span>
+        </div>
       </div>
-      <span class="nm">{{ APP_MARCA }}</span>
-    </div>
 
-    <h1>A gestão da sua clínica veterinária, sem complicação.</h1>
-
-    <div class="feat"><div class="fi"><i class="bi bi-clipboard2-pulse"></i></div><span>Prontuário completo de cada animal</span></div>
-    <div class="feat"><div class="fi"><i class="bi bi-receipt"></i></div><span>Tickets e receitas em segundos</span></div>
-    <div class="feat"><div class="fi"><i class="bi bi-graph-up-arrow"></i></div><span>Financeiro e relatórios em tempo real</span></div>
-
-    <div class="copy">© 2026 {{ APP_MARCA }} · Sistema de Gestão Veterinária</div>
-  </div>
-
-  <div class="right">
-    <div class="form-wrap">
-      <h2>Acesse sua conta</h2>
-      <div class="sub">Bom te ver de novo. Entre para continuar.</div>
+      <p class="title">Evolvify VET</p>
+      <h1 class="heading">Acesse sua conta</h1>
+      <p class="sub">Entre com seu acesso para continuar utilizando o sistema da clínica.</p>
 
       {% with msgs = get_flashed_messages(with_categories=true) %}
         {% for cat, msg in msgs %}
           <div class="alerta {{ 'err' if cat in ('danger','error') else '' }}">
-            <i class="bi bi-{{ 'exclamation-circle' if cat in ('danger','error') else 'clock-history' }}"></i>{{ msg }}
+            <i class="bi bi-{{ 'exclamation-circle' if cat in ('danger','error') else 'info-circle' }}"></i>
+            <span>{{ msg }}</span>
           </div>
         {% endfor %}
       {% endwith %}
 
-      <form method="post">
-        <label class="form-label">Usuário</label>
-        <div class="ig">
-          <i class="bi bi-person lead-i"></i>
-          <input type="text" name="username" autofocus required>
+      <form method="post" class="form">
+        <div class="field">
+          <label class="label" for="username">Email</label>
+          <div class="input-wrap">
+            <i class="bi bi-person icon"></i>
+            <input type="text" id="username" name="username" autofocus required placeholder="alex@email.com">
+          </div>
         </div>
 
-        <label class="form-label">Senha</label>
-        <div class="ig">
-          <i class="bi bi-lock lead-i"></i>
-          <input type="password" name="senha" id="senha" required>
-          <button type="button" class="toggle" onclick="const s=document.getElementById('senha');s.type=s.type==='password'?'text':'password';this.querySelector('i').classList.toggle('bi-eye');this.querySelector('i').classList.toggle('bi-eye-slash')">
-            <i class="bi bi-eye"></i>
-          </button>
+        <div class="field">
+          <label class="label" for="senha">Senha</label>
+          <div class="input-wrap">
+            <i class="bi bi-lock icon"></i>
+            <input type="password" id="senha" name="senha" required placeholder="Coloque sua senha">
+            <button type="button" class="toggle" aria-label="Mostrar ou ocultar senha"
+              onclick="const s=document.getElementById('senha');const i=this.querySelector('i');s.type=s.type==='password'?'text':'password';i.classList.toggle('bi-eye');i.classList.toggle('bi-eye-slash');">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
         </div>
 
-        <div class="row-opts">
-          <label class="d-flex align-items-center gap-1 text-secondary">
-            <input type="checkbox" name="lembrar" checked> Manter conectado
+        <div class="options">
+          <label>
+            <input type="checkbox" name="lembrar" checked>
+            <span>Manter conectado</span>
           </label>
-          <a href="{{ url_for('solicitar_redefinicao') }}">Esqueci minha senha</a>
+          <a href="{{ url_for('solicitar_redefinicao') }}" style="text-decoration: none;">Esqueceu a sua senha?</a>
         </div>
 
-        <button type="submit" class="btn-entrar"><i class="bi bi-box-arrow-in-right"></i> Entrar</button>
+        <button type="submit" class="btn-login">
+          <i class="bi bi-box-arrow-in-right"></i>
+          Login agora
+        </button>
+
+        <div class="or-row">OU</div>
+
+        <a class="btn-outline-orange" href="{{ url_for('solicitar_redefinicao') }}">
+          Esqueci minha senha
+        </a>
       </form>
 
-      <div class="foot-info">{{ APP_NOME }} <strong>{{ APP_MARCA }}</strong> · v2.0 · Suporte: (83) 92003-7703</div>
-    </div>
-  </div>
-{% set suporte_modo = 'entrada' %}
-{% include "_suporte.html" %}
+      <div class="side-note">
+        {{ APP_NOME }} <strong>{{ APP_MARCA }}</strong> · v2.0 · Suporte: (83) 92003-7703
+      </div>
+    </section>
+
+    <section class="right" aria-hidden="true">
+      <div class="artwork">
+        <div class="stack">
+          <img class="hero-ill" src="{{ url_for('static', filename='login-community/login-illustrator.svg') }}" alt="">
+        </div>
+      </div>
+    </section>
+  </main>
+
+  {% set suporte_modo = 'entrada' %}
+  {% include "_suporte.html" %}
 </body>
 </html>

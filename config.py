@@ -43,6 +43,7 @@ LIMIT = int(_get("SCRAPER_LIMIT", "500"))
 # ─── Web app (Evolvify) ───────────────────────────────────────
 SECRET_KEY = _get("SECRET_KEY", "dev-secret-trocar")
 FLASK_PORT = int(_get("FLASK_PORT", "5001"))
+FLASK_DEBUG = _get("FLASK_DEBUG", "0").strip().lower() in {"1", "true", "yes", "on"}
 DATABASE_URL = _get("DATABASE_URL", "")
 # Máximo de conexões no pool por processo (gunicorn worker). Como cada
 # requisição usa 1 conexão e há ~4 threads/worker, 8 cobre com folga.

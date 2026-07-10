@@ -167,8 +167,9 @@
       {% if animal.get('sexo') %}<b>Sexo:</b> {{ animal.sexo }} &nbsp;{% endif %}
       {% if animal.get('pelagem') %}<b>Pelagem:</b> {{ animal.pelagem }}{% endif %}
     </p>
-    {% if animal.get('nascimento') %}<p><b>Nascimento:</b> {{ animal.nascimento | data_br }}</p>{% endif %}
-    {% if animal.get('idade') %}<p><b>Idade:</b> {{ animal.idade }}</p>{% endif %}
+    {% if animal.get('nascimento') %}
+    <p><b>Nascimento:</b> {{ animal.nascimento | data_br }}</p>
+    {% endif %}
   </fieldset>
 
   <div class="titulo-receita">Receituário de Controle Especial</div>
@@ -228,7 +229,7 @@
     <div class="campo-linha">
       <div><span class="rot">Pelagem:</span> <span class="val">{{ animal.get('pelagem','') }}</span></div>
       <div><span class="rot">Peso:</span> <span class="val">{{ animal.get('peso','') }}{% if animal.get('peso') %} kg{% endif %}</span></div>
-      <div><span class="rot">Idade:</span> <span class="val">{{ animal.get('idade','') }}</span></div>
+      <div><span class="rot">Nascimento:</span> <span class="val">{% if animal.get('nascimento') %}{{ animal.nascimento | data_br }}{% endif %}</span></div>
       <div><span class="rot">Castrado:</span> <span class="val">{{ animal.get('castrado_label','') or animal.get('castrado','') }}</span></div>
     </div>
   </div>
