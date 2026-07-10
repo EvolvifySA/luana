@@ -168,6 +168,7 @@
       {% if animal.get('pelagem') %}<b>Pelagem:</b> {{ animal.pelagem }}{% endif %}
     </p>
     {% if animal.get('nascimento') %}<p><b>Nascimento:</b> {{ animal.nascimento | data_br }}</p>{% endif %}
+    {% if animal.get('idade') %}<p><b>Idade:</b> {{ animal.idade }}</p>{% endif %}
   </fieldset>
 
   <div class="titulo-receita">Receituário de Controle Especial</div>

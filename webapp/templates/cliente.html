@@ -86,6 +86,7 @@
                 <div class="row g-1 mt-1" style="font-size:.8rem">
                   {% if animal.get('sexo') %}<div class="col-6"><span class="text-muted">Sexo</span> <span class="fw-semibold">{{ animal.sexo }}</span></div>{% endif %}
                   {% if animal.get('nascimento') %}<div class="col-6"><span class="text-muted">Nascimento</span> <span class="fw-semibold">{{ animal.nascimento | data_br }}</span></div>{% endif %}
+                  {% if animal.get('idade') %}<div class="col-6"><span class="text-muted">Idade</span> <span class="fw-semibold">{{ animal.idade }}</span></div>{% endif %}
                   {% if animal.get('pelagem') %}<div class="col-6"><span class="text-muted">Pelagem</span> <span class="fw-semibold">{{ animal.pelagem }}</span></div>{% endif %}
                   {% if animal.get('chip') and animal.chip != 'Não informado' %}<div class="col-6"><span class="text-muted">Chip</span> <span class="fw-semibold">{{ animal.chip }}</span></div>{% endif %}
                 </div>

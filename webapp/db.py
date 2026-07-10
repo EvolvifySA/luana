@@ -307,7 +307,10 @@ def get_animais_cliente(id_cliente):
              f"{len(animais)} importados + {len(novos)} novos "
              f"(fonte: animais.csv + offline_novos.db)")
 
-    return animais + [dict(r) for r in novos]
+    resultado = animais + [dict(r) for r in novos]
+    for animal in resultado:
+        animal["idade"] = animal.get("idade") or _idade_texto(animal.get("nascimento"))
+    return resultado
 
 
 def total_animais():
@@ -366,11 +369,12 @@ def inserir_cliente(dados):
 
 def inserir_animal(dados):
     conn = _get_novos_db()
+    nascimento = _normalizar_nascimento_animal(dados) or dados.get("nascimento") or None
     conn.execute(
         """INSERT INTO animais_novos
            (id_cliente,nome,especie,raca,sexo,nascimento,pelagem,chip,observacao)
            VALUES (:id_cliente,:nome,:especie,:raca,:sexo,:nascimento,:pelagem,:chip,:observacao)""",
-        dados,
+        {**dados, "nascimento": nascimento},
     )
     conn.commit()
     id_novo = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -690,6 +694,80 @@ def _parse_date(valor):
         except ValueError:
             continue
     return None
+
+
+def _birth_date_from_age_fields(dados):
+    """Calcula uma data de nascimento a partir de anos/meses/dias informados."""
+    from datetime import date as _date, timedelta as _timedelta
+    import calendar as _calendar
+
+    def _int_value(chave):
+        bruto = (dados.get(chave) or "").strip()
+        if not bruto:
+            return 0
+        try:
+            return max(0, int(bruto))
+        except ValueError:
+            return 0
+
+    anos = _int_value("idade_anos")
+    meses = _int_value("idade_meses")
+    dias = _int_value("idade_dias")
+    if anos <= 0 and meses <= 0 and dias <= 0:
+        return None
+
+    hoje = _date.today()
+
+    try:
+        nascimento = hoje.replace(year=hoje.year - anos)
+    except ValueError:
+        # 29/02 cai em 28/02 em anos não bissextos.
+        nascimento = hoje.replace(year=hoje.year - anos, day=28)
+
+    total_meses = nascimento.year * 12 + nascimento.month - 1 - meses
+    ano = total_meses // 12
+    mes = total_meses % 12 + 1
+    dia = min(nascimento.day, _calendar.monthrange(ano, mes)[1])
+    nascimento = nascimento.replace(year=ano, month=mes, day=dia)
+    nascimento = nascimento - _timedelta(days=dias)
+    return nascimento
+
+
+def _normalizar_nascimento_animal(dados):
+    """Retorna `birth_date` em ISO a partir de data exata ou idade aproximada."""
+    nascimento = _parse_date(dados.get("nascimento"))
+    if nascimento:
+        return nascimento.isoformat()
+
+    modo = (dados.get("idade_modo") or "").strip().lower()
+    if modo != "aproximada":
+        return None
+
+    nascimento = _birth_date_from_age_fields(dados)
+    return nascimento.isoformat() if nascimento else None
+
+
+def _idade_texto(nascimento):
+    """Formata a idade atual como 'X anos Y meses'."""
+    from datetime import date as _date
+
+    if not nascimento:
+        return ""
+    if isinstance(nascimento, _date):
+        nasc = nascimento
+    else:
+        nasc = _parse_date(nascimento)
+        if not nasc:
+            return ""
+    hoje = _date.today()
+    anos = hoje.year - nasc.year - ((hoje.month, hoje.day) < (nasc.month, nasc.day))
+    meses = hoje.month - nasc.month
+    if hoje.day < nasc.day:
+        meses -= 1
+    meses %= 12
+    if anos < 0:
+        anos = 0
+    return f"{anos} anos {meses} meses"
 
 
 def _parse_data(texto):
@@ -1119,6 +1197,7 @@ def _map_animal_row(row):
         "raca": row.get("breed") or "",
         "sexo": row.get("sex") or "",
         "nascimento": birth_date.isoformat() if hasattr(birth_date, "isoformat") else (birth_date or ""),
+        "idade": _idade_texto(birth_date.isoformat() if hasattr(birth_date, "isoformat") else (birth_date or "")),
         "pelagem": row.get("coat") or "",
         "chip": row.get("chip") or "",
         "castrado": castrado,
@@ -1950,6 +2029,7 @@ def inserir_animal(dados):
     client = _resolve_client_pg(dados.get("id_cliente"))
     if not client:
         raise ValueError("Cliente não encontrado para inserir animal.")
+    nascimento = _normalizar_nascimento_animal(dados) or dados.get("nascimento") or None
     with _pg_conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
@@ -1964,7 +2044,7 @@ def inserir_animal(dados):
                     dados.get("especie"),
                     dados.get("raca"),
                     dados.get("sexo"),
-                    dados.get("nascimento") or None,
+                    nascimento,
                     dados.get("pelagem"),
                     dados.get("chip"),
                     _parse_bool(dados.get("castrado")),
@@ -1983,6 +2063,7 @@ def atualizar_animal(id_animal, dados):
     animal = _resolve_animal_pg(id_animal)
     if not animal:
         raise ValueError("Animal não encontrado.")
+    nascimento = _normalizar_nascimento_animal(dados) or dados.get("nascimento") or None
     with _pg_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1997,7 +2078,7 @@ def atualizar_animal(id_animal, dados):
                     dados.get("especie"),
                     dados.get("raca"),
                     dados.get("sexo"),
-                    dados.get("nascimento") or None,
+                    nascimento,
                     dados.get("pelagem"),
                     dados.get("chip"),
                     _parse_bool(dados.get("castrado")),

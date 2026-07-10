@@ -237,6 +237,54 @@ def _idade_texto(nascimento):
     return f"{anos} anos {meses} meses"
 
 
+def _idade_para_campos(nascimento):
+    """Converte uma data de nascimento em anos/meses para pré-preencher o form."""
+    if not nascimento:
+        return {"idade_anos": "", "idade_meses": "", "idade_dias": ""}
+    if isinstance(nascimento, date):
+        nasc = nascimento
+    else:
+        texto = str(nascimento).strip()
+        if not texto:
+            return {"idade_anos": "", "idade_meses": "", "idade_dias": ""}
+        nasc = None
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+            try:
+                nasc = datetime.strptime(texto, fmt).date()
+                break
+            except ValueError:
+                continue
+        if not nasc:
+            return {"idade_anos": "", "idade_meses": "", "idade_dias": ""}
+
+    hoje = date.today()
+    if nasc > hoje:
+        return {"idade_anos": "", "idade_meses": "", "idade_dias": ""}
+
+    anos = hoje.year - nasc.year - ((hoje.month, hoje.day) < (nasc.month, nasc.day))
+    meses = hoje.month - nasc.month
+    if hoje.day < nasc.day:
+        meses -= 1
+    meses %= 12
+    if anos < 0:
+        anos = 0
+    return {
+        "idade_anos": str(anos),
+        "idade_meses": str(meses),
+        "idade_dias": "0",
+    }
+
+
+def _idade_aproximada_preenchida(form):
+    for chave in ("idade_anos", "idade_meses", "idade_dias"):
+        try:
+            if int((form.get(chave) or "").strip() or 0) > 0:
+                return True
+        except ValueError:
+            continue
+    return bool((form.get("nascimento") or "").strip())
+
+
 def register_routes(app):
 
     # ─── Autenticação (proteção global) ───────────────────────────────────────
@@ -491,8 +539,13 @@ def register_routes(app):
         if request.method == "POST":
             dados = {k: request.form.get(k, "").strip()
                      for k in ("nome", "especie", "raca", "sexo",
-                               "nascimento", "pelagem", "chip", "castrado", "observacao")}
+                               "nascimento", "pelagem", "chip", "castrado", "observacao",
+                               "idade_modo", "idade_anos", "idade_meses", "idade_dias")}
             dados["id_cliente"] = id_cliente
+            if dados.get("idade_modo") == "aproximada" and not _idade_aproximada_preenchida(dados):
+                flash("Preencha a idade aproximada antes de salvar o animal.", "danger")
+                return render_template("novo_animal.html", cliente=cliente_dados,
+                                       id_cliente=id_cliente, form=dados)
             if not dados["nome"]:
                 flash("Nome do animal é obrigatório.", "danger")
                 return render_template("novo_animal.html", cliente=cliente_dados,
@@ -509,7 +562,13 @@ def register_routes(app):
         if request.method == "POST":
             dados = {k: request.form.get(k, "").strip()
                      for k in ("nome", "especie", "raca", "sexo",
-                               "nascimento", "pelagem", "chip", "castrado", "observacao")}
+                               "nascimento", "pelagem", "chip", "castrado", "observacao",
+                               "idade_modo", "idade_anos", "idade_meses", "idade_dias")}
+            if dados.get("idade_modo") == "aproximada" and not _idade_aproximada_preenchida(dados):
+                flash("Preencha a idade aproximada antes de salvar o animal.", "danger")
+                return render_template("novo_animal.html", cliente=cliente_dados,
+                                       id_cliente=id_cliente, id_animal=id_animal,
+                                       form=dados, editando=True)
             if not dados["nome"]:
                 flash("Nome do animal é obrigatório.", "danger")
                 return render_template("novo_animal.html", cliente=cliente_dados,
@@ -530,8 +589,13 @@ def register_routes(app):
         if not animal:
             flash("Animal não encontrado.", "warning")
             return redirect(url_for("cliente", id_cliente=id_cliente))
-        form = {**animal, "nome": animal.get("nome_animal") or animal.get("nome", ""),
-                "castrado": "sim" if animal.get("castrado") is True else ("nao" if animal.get("castrado") is False else "")}
+        form = {
+            **animal,
+            "nome": animal.get("nome_animal") or animal.get("nome", ""),
+            "castrado": "sim" if animal.get("castrado") is True else ("nao" if animal.get("castrado") is False else ""),
+            "idade_modo": "exata",
+            **_idade_para_campos(animal.get("nascimento")),
+        }
         return render_template("novo_animal.html", cliente=cliente_dados,
                                id_cliente=id_cliente, id_animal=id_animal,
                                form=form, editando=True)

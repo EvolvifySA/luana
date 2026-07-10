@@ -8,6 +8,7 @@
   <div class="card">
     <div class="card-header"><i class="bi bi-heart-pulse me-2 text-azul"></i>{{ 'Editar Animal' if editando else 'Novo Animal' }}{% if cliente %} <span class="text-muted fw-normal">— {{ cliente.nome }}</span>{% endif %}</div>
     <div class="card-body p-4">
+      <input type="hidden" name="idade_modo" id="idadeModoInput" value="{{ form.get('idade_modo', 'exata') }}">
 
       <div class="sec-label"><i class="bi bi-patch-heart"></i>Identificação</div>
       <div class="row g-3 mb-3">
@@ -49,19 +50,19 @@
             <div class="row g-1">
               <div class="col-4">
                 <div class="input-group input-group-sm">
-                  <input type="number" min="0" step="1" id="idadeAnosInput" class="form-control" placeholder="0">
+                  <input type="number" min="0" step="1" name="idade_anos" id="idadeAnosInput" class="form-control" placeholder="0" value="{{ form.get('idade_anos','') }}">
                   <span class="input-group-text">anos</span>
                 </div>
               </div>
               <div class="col-4">
                 <div class="input-group input-group-sm">
-                  <input type="number" min="0" step="1" id="idadeMesesInput" class="form-control" placeholder="0">
+                  <input type="number" min="0" step="1" name="idade_meses" id="idadeMesesInput" class="form-control" placeholder="0" value="{{ form.get('idade_meses','') }}">
                   <span class="input-group-text">meses</span>
                 </div>
               </div>
               <div class="col-4">
                 <div class="input-group input-group-sm">
-                  <input type="number" min="0" step="1" id="idadeDiasInput" class="form-control" placeholder="0">
+                  <input type="number" min="0" step="1" name="idade_dias" id="idadeDiasInput" class="form-control" placeholder="0" value="{{ form.get('idade_dias','') }}">
                   <span class="input-group-text">dias</span>
                 </div>
               </div>
@@ -102,21 +103,28 @@ const idadeMesesInput = document.getElementById('idadeMesesInput');
 const idadeDiasInput = document.getElementById('idadeDiasInput');
 
 function setModoNascimento(modo) {
+  document.getElementById('idadeModoInput').value = modo === 'aproximada' ? 'aproximada' : 'exata';
   if (modo === 'aproximada') {
     btnAprox.classList.add('active');
     btnExata.classList.remove('active');
     nascimentoInput.classList.add('d-none');
     idadeWrap.classList.remove('d-none');
+    idadeAnosInput.disabled = false;
+    idadeMesesInput.disabled = false;
+    idadeDiasInput.disabled = false;
   } else {
     btnExata.classList.add('active');
     btnAprox.classList.remove('active');
     nascimentoInput.classList.remove('d-none');
     idadeWrap.classList.add('d-none');
+    idadeAnosInput.disabled = true;
+    idadeMesesInput.disabled = true;
+    idadeDiasInput.disabled = true;
   }
 }
 btnExata.addEventListener('click', function () { setModoNascimento('exata'); });
 btnAprox.addEventListener('click', function () { setModoNascimento('aproximada'); });
-setModoNascimento('exata');
+setModoNascimento(document.getElementById('idadeModoInput').value === 'aproximada' ? 'aproximada' : 'exata');
 
 document.getElementById('animalForm').addEventListener('submit', function (ev) {
   if (!idadeWrap.classList.contains('d-none')) {
