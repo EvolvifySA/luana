@@ -102,6 +102,38 @@ const idadeAnosInput = document.getElementById('idadeAnosInput');
 const idadeMesesInput = document.getElementById('idadeMesesInput');
 const idadeDiasInput = document.getElementById('idadeDiasInput');
 
+function hasIdadePreenchida() {
+  return (parseInt(idadeAnosInput.value, 10) || 0) > 0 ||
+         (parseInt(idadeMesesInput.value, 10) || 0) > 0 ||
+         (parseInt(idadeDiasInput.value, 10) || 0) > 0;
+}
+
+function preencherIdadeAproxDeNascimento() {
+  if (hasIdadePreenchida()) return;
+  const texto = (nascimentoInput.value || '').trim();
+  if (!texto) return;
+  const partes = texto.split('-');
+  if (partes.length !== 3) return;
+  const anoN = parseInt(partes[0], 10);
+  const mesN = parseInt(partes[1], 10);
+  const diaN = parseInt(partes[2], 10);
+  if (!anoN || !mesN || !diaN) return;
+  const hoje = new Date();
+  let anos = hoje.getFullYear() - anoN;
+  let meses = hoje.getMonth() + 1 - mesN;
+  if (hoje.getDate() < diaN) {
+    meses -= 1;
+  }
+  if ((hoje.getMonth() + 1) < mesN || ((hoje.getMonth() + 1) === mesN && hoje.getDate() < diaN)) {
+    anos -= 1;
+  }
+  meses = ((meses % 12) + 12) % 12;
+  if (anos < 0) anos = 0;
+  idadeAnosInput.value = String(anos);
+  idadeMesesInput.value = String(meses);
+  idadeDiasInput.value = '0';
+}
+
 function setModoNascimento(modo) {
   document.getElementById('idadeModoInput').value = modo === 'aproximada' ? 'aproximada' : 'exata';
   if (modo === 'aproximada') {
@@ -112,6 +144,7 @@ function setModoNascimento(modo) {
     idadeAnosInput.disabled = false;
     idadeMesesInput.disabled = false;
     idadeDiasInput.disabled = false;
+    preencherIdadeAproxDeNascimento();
   } else {
     btnExata.classList.add('active');
     btnAprox.classList.remove('active');
@@ -125,6 +158,9 @@ function setModoNascimento(modo) {
 btnExata.addEventListener('click', function () { setModoNascimento('exata'); });
 btnAprox.addEventListener('click', function () { setModoNascimento('aproximada'); });
 setModoNascimento(document.getElementById('idadeModoInput').value === 'aproximada' ? 'aproximada' : 'exata');
+if (document.getElementById('idadeModoInput').value === 'aproximada') {
+  preencherIdadeAproxDeNascimento();
+}
 
 document.getElementById('animalForm').addEventListener('submit', function (ev) {
   if (!idadeWrap.classList.contains('d-none')) {

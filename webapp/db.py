@@ -735,14 +735,20 @@ def _birth_date_from_age_fields(dados):
 
 def _normalizar_nascimento_animal(dados):
     """Retorna `birth_date` em ISO a partir de data exata ou idade aproximada."""
+    modo = (dados.get("idade_modo") or "").strip().lower()
+    if modo == "aproximada":
+        nascimento = _birth_date_from_age_fields(dados)
+        if nascimento:
+            return nascimento.isoformat()
+        # Se o formulário veio em modo aproximado mas sem valores válidos,
+        # não sobrescrevemos silenciosamente com a data antiga.
+        return None
+
     nascimento = _parse_date(dados.get("nascimento"))
     if nascimento:
         return nascimento.isoformat()
 
-    modo = (dados.get("idade_modo") or "").strip().lower()
-    if modo != "aproximada":
-        return None
-
+    # Fallback: quando o modo não veio explícito, ainda aceitamos campos de idade.
     nascimento = _birth_date_from_age_fields(dados)
     return nascimento.isoformat() if nascimento else None
 

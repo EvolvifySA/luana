@@ -282,7 +282,7 @@ def _idade_aproximada_preenchida(form):
                 return True
         except ValueError:
             continue
-    return bool((form.get("nascimento") or "").strip())
+    return False
 
 
 def register_routes(app):
