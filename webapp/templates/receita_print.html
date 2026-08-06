@@ -24,22 +24,49 @@
        "Gráficos de segundo plano" no diálogo de impressão — aqui força sempre. */
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
 
-    /* ---- Receituário de Controle Especial (layout simples, sem arte) ---- */
-    .plain { padding: 25px; font-family: Arial, sans-serif; }
-    .plain .header { text-align: center; margin-bottom: 6px; }
-    .plain .header h2 { font-size: 16px; }
-    .plain .header p { font-size: 11px; color: #444; }
-    .emitente { border: 1px solid #333; padding: 8px 12px; margin-bottom: 12px; display: flex; justify-content: space-between; }
-    .emitente .left p { font-size: 11px; margin: 2px 0; }
-    .emitente .vias { font-size: 11px; text-align: right; }
-    fieldset { border: 1px solid #999; border-radius: 4px; padding: 8px 12px; margin-bottom: 10px; }
-    fieldset legend { font-size: 11px; font-weight: bold; padding: 0 6px; color: #555; }
-    fieldset p { font-size: 12px; margin: 2px 0; line-height: 1.5; }
-    .titulo-receita { text-align: center; font-size: 15px; font-weight: bold; margin: 18px 0 14px; text-decoration: underline; }
-    .plain .uso-titulo { text-align: center; font-size: 13px; font-weight: bold; text-decoration: underline; margin: 16px 0 12px; }
-    .plain .medicamento { margin-bottom: 14px; }
-    .plain .assinatura { margin-top: 50px; text-align: center; }
-    .plain .assinatura .linha { border-top: 1px solid #333; width: 250px; margin: 0 auto 4px; }
+    /* ---- Receituário de Controle Especial (modelo oficial ANVISA, com
+       identificação do comprador/fornecedor pra farmácia preencher) ---- */
+    .ce-page {
+      font-family: Arial, sans-serif; color: #1a1a1a; font-size: 11px;
+      min-height: 273mm; /* 297mm - 2×12mm da margem do @page: enche 1 folha só */
+      border: 1.5px solid #333; border-radius: 16px; padding: 14px 18px;
+      display: flex; flex-direction: column;
+    }
+    .ce-header { display: flex; align-items: flex-start; gap: 14px; }
+    .ce-logo img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; }
+    .ce-emitente { border: 1px solid #333; border-radius: 6px; padding: 6px 10px; flex: 1; }
+    .ce-emitente-tit { text-align: center; font-weight: bold; font-size: 11px; margin-bottom: 4px; }
+    .ce-emitente p { margin: 2px 0; font-size: 10.5px; }
+    .ce-vias { font-size: 9.5px; text-align: right; white-space: nowrap; padding-top: 2px; }
+    .ce-clinica-nome { margin-top: 4px; font-size: 11px; }
+    .ce-email { font-size: 10px; margin-top: 2px; }
+    .ce-email u { color: #1a0dab; }
+
+    .ce-box { border: 1px solid #333; border-radius: 6px; padding: 6px 10px; margin-top: 10px; }
+    .ce-box legend { font-size: 10px; padding: 0 4px; margin-left: 4px; }
+    .ce-box p { margin: 2px 0; font-size: 11px; }
+
+    .ce-titulo { text-align: center; font-weight: bold; font-size: 14px; margin: 16px 0; }
+
+    .ce-corpo { flex: 1; } /* cresce e empurra comprador/fornecedor + rodapé pro fim da folha */
+    .ce-corpo .uso-titulo { text-align: center; font-size: 13px; font-weight: bold; text-decoration: underline; margin: 14px 0 10px; }
+    .ce-corpo .medicamento { margin-bottom: 14px; color: #1a1a1a; }
+    .ce-corpo .obs { margin-top: 14px; font-size: 11px; }
+    .ce-corpo .obs b { display: block; margin-bottom: 2px; }
+    .ce-corpo .obs .obs-lista { margin: 2px 0 0 18px; padding: 0; }
+    .ce-corpo .obs .obs-lista li { margin-bottom: 2px; }
+
+    .ce-cf { display: flex; border: 1px solid #333; margin-top: 10px; }
+    .ce-cf > div { flex: 1; padding: 8px 12px; }
+    .ce-cf > div:first-child { border-right: 1px solid #333; }
+    .ce-cf-tit { text-align: center; font-weight: bold; font-size: 10.5px; margin-bottom: 10px; }
+    .ce-cf p { margin: 10px 0; font-size: 10px; white-space: nowrap; }
+    .ce-linha { display: inline-block; border-bottom: 1px solid #333; min-width: 130px; }
+    .ce-linha.curta { min-width: 70px; }
+    .ce-linha.curtissima { min-width: 40px; }
+    .ce-assinatura-linha { border-bottom: 1px solid #333; margin: 26px 14px 4px; }
+
+    .ce-footer-box { font-size: 11px; }
 
     /* ---- Receituário com papel timbrado da marca (arte de fundo) ---- */
     /* A folha ocupa a folha A4 inteira (297mm); a arte (proporção 1545x1999, ~272mm
@@ -127,67 +154,98 @@
 {% endmacro %}
 
 {% if receita.tipo == 'especial' %}
-{# ---------- Controle Especial: layout simples/legal, sem papel timbrado ---------- #}
-<div class="plain">
-  {% if logo_src %}
-  <div style="text-align:center;margin-bottom:8px;">
-    <img src="{{ logo_src }}" alt="Logo" style="max-height:90px;max-width:220px;object-fit:contain;">
-  </div>
-  {% endif %}
+{# ---------- Controle Especial: modelo oficial, com identificação do
+   comprador/fornecedor pra farmácia preencher na hora da venda ---------- #}
+<div class="ce-page">
 
-  <div class="emitente">
-    <div class="left">
-      <p style="font-weight:bold;text-align:center;margin-bottom:6px;">IDENTIFICAÇÃO DO EMITENTE</p>
-      <p><b>Nome:</b> {{ receita.veterinario }} {% if receita.crmv %}&nbsp; CRMV: {{ receita.crmv }}{% endif %}</p>
-      <p><b>{{ clinica.nome }}</b></p>
-      {% if clinica.tel1 %}<p><b>Telefone:</b> {{ clinica.tel1 }}</p>{% endif %}
-      {% if clinica.email %}<p><b>Email:</b> {{ clinica.email }}</p>{% endif %}
+  <div class="ce-header">
+    <div class="ce-logo">
+      {% if logo_src %}<img src="{{ logo_src }}" alt="Logo">{% endif %}
     </div>
-    <div class="vias">
-      1ª Via Farmácia<br>
-      2ª Via Paciente<br>
-      3ª Via Veterinário
+    <div class="ce-emitente">
+      <div class="ce-emitente-tit">IDENTIFICAÇÃO DO EMITENTE</div>
+      <p><b>NOME:</b> {{ receita.veterinario }}{% if receita.crmv %} <b>CRMV:</b> {{ receita.crmv }}{% endif %}</p>
+      {% if clinica.endereco %}<p><b>ENDEREÇO:</b> {{ clinica.endereco }}</p>{% endif %}
+      {% if clinica.tel1 %}<p><b>TELEFONE:</b> {{ clinica.tel1 }}</p>{% endif %}
+      {% if clinica.cidade or clinica.estado %}<p><b>CIDADE:</b> {{ clinica.cidade }} &nbsp;&nbsp; <b>UF:</b> {{ clinica.estado }}</p>{% endif %}
+    </div>
+    <div class="ce-vias">
+      1º Via Farmácia<br>
+      2º Via Paciente<br>
+      3º Via Veterinário
     </div>
   </div>
 
-  <fieldset>
+  <div class="ce-clinica-nome">{{ clinica.nome }}</div>
+  {% if clinica.email %}<div class="ce-email">Email: <u>{{ clinica.email }}</u></div>{% endif %}
+
+  <fieldset class="ce-box">
     <legend>Responsável</legend>
-    <p><b>Nome:</b> {{ cliente.nome if cliente else '—' }}
-       {% if cliente and cliente.celular %}&nbsp;&nbsp; <b>Telefone:</b> {{ cliente.celular }}{% endif %}</p>
-    {% if cliente and cliente.cpf %}<p><b>CPF:</b> {{ cliente.cpf }}</p>{% endif %}
-    {% if cliente and cliente.endereco %}<p><b>Endereço:</b> {{ cliente.endereco }}</p>{% endif %}
+    <p><b>Nome:</b> {{ cliente.nome if cliente else '' }} &nbsp;&nbsp; <b>Telefone:</b> {{ cliente.celular if cliente else '' }}</p>
+    <p><b>CPF:</b> {{ cliente.cpf if cliente else '' }}</p>
+    <p><b>Endereço:</b> {{ cliente.endereco if cliente else '' }}{% if cliente and cliente.numero %} - Nº {{ cliente.numero }}{% endif %} &nbsp;&nbsp; <b>CEP:</b> {{ cliente.cep if cliente else '' }} &nbsp;&nbsp; <b>Bairro:</b> {{ cliente.bairro if cliente else '' }}</p>
+    <p><b>Cidade:</b> {{ cliente.cidade if cliente else '' }}</p>
   </fieldset>
 
-  <fieldset>
+  <fieldset class="ce-box">
     <legend>Animal</legend>
     <p>
-      <b>Nome:</b> {{ animal.get('nome_animal') or animal.get('nome') or '—' }} &nbsp;
-      {% if animal.get('especie') %}<b>Espécie:</b> {{ animal.especie }} &nbsp;{% endif %}
-      {% if animal.get('raca') %}<b>Raça:</b> {{ animal.raca }} &nbsp;{% endif %}
-      {% if animal.get('sexo') %}<b>Sexo:</b> {{ animal.sexo }} &nbsp;{% endif %}
-      {% if animal.get('pelagem') %}<b>Pelagem:</b> {{ animal.pelagem }}{% endif %}
+      <b>Nome:</b> {{ animal.get('nome_animal') or animal.get('nome') or '' }} &nbsp;&nbsp;
+      <b>Espécie:</b> {{ animal.get('especie','') }} &nbsp;&nbsp;
+      <b>Raça:</b> {{ animal.get('raca','') }} &nbsp;&nbsp;
+      <b>Sexo:</b> {{ animal.get('sexo','') }} &nbsp;&nbsp;
+      <b>Pelagem:</b> {{ animal.get('pelagem','') }}
     </p>
-    {% if animal.get('nascimento') %}
-    <p><b>Nascimento:</b> {{ animal.nascimento | data_br }}</p>
-    {% endif %}
+    <p>
+      <b>Data de Nascimento:</b> {% if animal.get('nascimento') %}{{ animal.nascimento | data_br }}{% endif %} &nbsp;&nbsp;
+      <b>Idade:</b> {{ animal.get('idade','') }}
+    </p>
   </fieldset>
 
-  <div class="titulo-receita">Receituário de Controle Especial</div>
+  <div class="ce-titulo">Receituário de Controle Especial</div>
 
-  {% if receita.oral_itens %}<div class="uso-titulo">Uso Oral</div>{{ render_meds(receita.oral_itens) }}{% endif %}
-  {% if receita.topico_itens %}<div class="uso-titulo">Uso Tópico</div>{{ render_meds(receita.topico_itens) }}{% endif %}
-  {% if not receita.oral_itens and not receita.topico_itens %}
-  <p style="text-align:center;color:#999;margin:30px 0;">Nenhum medicamento informado.</p>
-  {% endif %}
+  <div class="ce-corpo">
+    {% if receita.oral_itens %}<div class="uso-titulo">USO ORAL</div>{{ render_meds(receita.oral_itens) }}{% endif %}
+    {% if receita.topico_itens %}<div class="uso-titulo">USO TÓPICO</div>{{ render_meds(receita.topico_itens) }}{% endif %}
+    {% if not receita.oral_itens and not receita.topico_itens %}
+    <p style="text-align:center;color:#999;margin:30px 0;">Nenhum medicamento informado.</p>
+    {% endif %}
 
-  {% if receita.observacao %}<div class="obs"><b>Observações:</b> {{ receita.observacao }}</div>{% endif %}
-
-  <div style="text-align:right;margin-top:25px;font-size:12px;">{{ clinica.cidade or '' }}{% if clinica.cidade %}, {% endif %}{{ receita.data }}</div>
-  <div class="assinatura">
-    <div class="linha"></div>
-    <p>{{ receita.veterinario }}</p>
-    {% if receita.crmv %}<p>Médico(a) Veterinário(a) — {{ receita.crmv }}</p>{% endif %}
+    {% if receita.observacao %}
+    <div class="obs">
+      <b>Observações:</b>
+      <ul class="obs-lista">
+        {% for linha in receita.observacao.splitlines() %}
+          {% set linha = linha.strip().lstrip('-•').strip() %}
+          {% if linha %}<li>{{ linha }}</li>{% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
   </div>
+
+  <div class="ce-cf">
+    <div>
+      <div class="ce-cf-tit">IDENTIFICAÇÃO DO COMPRADOR</div>
+      <p>Nome:<span class="ce-linha"></span></p>
+      <p>Ident:<span class="ce-linha curta"></span> Órg.Emissor:<span class="ce-linha curta"></span></p>
+      <p>End:<span class="ce-linha"></span></p>
+      <p>&nbsp;<span class="ce-linha"></span></p>
+      <p>Cidade:<span class="ce-linha curta"></span> UF:<span class="ce-linha curtissima"></span></p>
+      <p>Telefone:<span class="ce-linha"></span></p>
+    </div>
+    <div>
+      <div class="ce-cf-tit">IDENTIFICAÇÃO DO FORNECEDOR</div>
+      <p style="text-align:center;white-space:normal">Data:____/____/____</p>
+      <div class="ce-assinatura-linha"></div>
+      <p style="text-align:center;white-space:normal">Ass. Farmacêutico</p>
+    </div>
+  </div>
+
+  <fieldset class="ce-box ce-footer-box">
+    <legend>Data da receita e Médico Veterinário</legend>
+    <p><b>Data:</b> {{ receita.data }} &nbsp;&nbsp; <b>Nome:</b> {{ receita.veterinario }}{% if receita.crmv %} &nbsp;&nbsp; <b>CRMV:</b> {{ receita.crmv }}{% endif %}</p>
+  </fieldset>
 </div>
 
 {% else %}

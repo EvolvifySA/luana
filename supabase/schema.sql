@@ -199,6 +199,11 @@ $$;
 create index if not exists idx_tickets_client_id on public.tickets (client_id);
 create index if not exists idx_tickets_animal_id on public.tickets (animal_id);
 create index if not exists idx_tickets_ticket_date on public.tickets (ticket_date desc);
+
+-- Orçamento: mesma estrutura do ticket, mas não conta como venda (fica de fora
+-- dos totais financeiros) até virar um ticket de verdade.
+alter table public.tickets add column if not exists record_type text not null default 'ticket';
+create index if not exists idx_tickets_record_type on public.tickets (record_type);
 create index if not exists idx_tickets_status on public.tickets (status);
 create index if not exists idx_tickets_legacy_ticket_id on public.tickets (legacy_ticket_id);
 

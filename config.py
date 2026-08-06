@@ -61,7 +61,8 @@ CLINICA = {
     "tel2":     "",
     "email":    _get("CLINICA_EMAIL", ""),
     "cidade":   _get("CLINICA_CIDADE", ""),
-    "endereco": "",
+    "estado":   _get("CLINICA_ESTADO", "PB"),
+    "endereco": _get("CLINICA_ENDERECO", ""),
     "cep":      "",
     "cnpj":     "",
 }

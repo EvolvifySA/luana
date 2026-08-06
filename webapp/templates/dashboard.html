@@ -138,4 +138,47 @@
   </div>
 </div>
 
+<!-- Retornos (vacinas vencendo/vencidas) -->
+<div class="row g-3 mt-1">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-calendar2-check me-2 text-azul"></i>Retornos</span>
+        <span class="text-muted small">Vacinas vencidas ou vencendo nos próximos 60 dias</span>
+      </div>
+      <div class="card-body p-0">
+        {% if retornos %}
+        <div class="table-responsive">
+          <table class="table mb-0 align-middle">
+            <thead><tr><th>Animal</th><th>Tutor</th><th>Vacina</th><th>Aplicada em</th><th>Retorno</th><th></th></tr></thead>
+            <tbody>
+              {% for r in retornos %}
+              <tr>
+                <td class="fw-semibold">{{ r.animal or '—' }}</td>
+                <td class="text-muted">{{ r.cliente or '—' }}</td>
+                <td>{{ r.vacina or '—' }}</td>
+                <td class="text-muted">{{ r.data_aplicacao }}</td>
+                <td>
+                  {% if r.atrasado %}<span class="pill pill-red"><i class="bi bi-exclamation-triangle"></i> Atrasado — {{ r.data_retorno }}</span>
+                  {% else %}<span class="pill pill-amber"><i class="bi bi-calendar2-event"></i> {{ r.data_retorno }}</span>{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if r.id_cliente %}
+                  <a href="{{ url_for('cliente', id_cliente=r.id_cliente, animal=r.id_animal, secao='vacinas') }}"
+                     class="btn btn-xs btn-light-soft">Ver histórico</a>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state"><i class="bi bi-calendar2-check"></i>Nenhum retorno de vacina vencido ou próximo.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}

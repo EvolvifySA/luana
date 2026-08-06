@@ -141,6 +141,14 @@
        class="btn btn-outline-secondary">Cancelar</a>
   </div>
 </form>
+
+<!-- Nomes de medicamentos já usados antes, pra autocompletar (ajuda muito no celular) -->
+<datalist id="listaMedicamentos">
+  {% for m in medicamentos or [] %}
+  <option value="{{ m }}">
+  {% endfor %}
+</datalist>
+
 {% endblock %}
 
 {% block scripts %}
@@ -156,7 +164,7 @@ function addMed(containerId, nome, qtd, instr) {
   row.className = 'med-row border rounded-3 p-2 mb-2';
   row.innerHTML =
     '<div class="row g-2 align-items-center">' +
-      '<div class="col-md-7"><input type="text" class="form-control form-control-sm med-nome" placeholder="Medicamento (ex.: Meloxicam 2mg)"></div>' +
+      '<div class="col-md-7"><input type="text" list="listaMedicamentos" class="form-control form-control-sm med-nome" placeholder="Medicamento (ex.: Meloxicam 2mg)"></div>' +
       '<div class="col-md-4"><input type="text" class="form-control form-control-sm med-qtd" placeholder="Quantidade (ex.: 1cx)"></div>' +
       '<div class="col-md-1 text-end"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest(\'.med-row\').remove()"><i class="bi bi-trash"></i></button></div>' +
       '<div class="col-12"><input type="text" class="form-control form-control-sm med-instr" placeholder="Posologia / como usar (ex.: Dar 1 comprimido 1x ao dia por 5 dias)"></div>' +

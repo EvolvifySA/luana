@@ -20,6 +20,7 @@ import sqlite3
 import os
 import re
 import logging
+from datetime import date
 from functools import lru_cache
 
 import requests
@@ -578,6 +579,27 @@ def get_receitas_animal(id_cliente, id_animal):
     return [dict(r) for r in rows]
 
 
+def get_medicamentos_recentes(limit=300):
+    """Nomes de medicamentos já usados em receitas (qualquer cliente), pra autocomplete."""
+    conn = _get_novos_db()
+    _init_receitas_table(conn)
+    rows = conn.execute(
+        "SELECT uso_oral, uso_topico FROM receitas ORDER BY id DESC LIMIT 500"
+    ).fetchall()
+    conn.close()
+    vistos = set()
+    nomes = []
+    for row in rows:
+        for texto in (row["uso_oral"], row["uso_topico"]):
+            for linha in (texto or "").splitlines():
+                nome = linha.split("---")[0].strip()
+                chave = nome.lower()
+                if nome and chave not in vistos:
+                    vistos.add(chave)
+                    nomes.append(nome)
+    return sorted(nomes, key=str.lower)[:limit]
+
+
 def atualizar_receita(receita_id, dados):
     conn = _get_novos_db()
     _init_receitas_table(conn)
@@ -948,6 +970,7 @@ _LEGACY_get_tickets_cliente = get_tickets_cliente
 _LEGACY_salvar_receita = salvar_receita
 _LEGACY_get_receita = get_receita
 _LEGACY_get_receitas_animal = get_receitas_animal
+_LEGACY_get_medicamentos_recentes = get_medicamentos_recentes
 _LEGACY_atualizar_receita = atualizar_receita
 _LEGACY_resumo_financeiro = resumo_financeiro
 _LEGACY_ultimos_tickets = ultimos_tickets
@@ -2534,17 +2557,26 @@ def salvar_ticket(ticket):
     from datetime import datetime
     ticket_date = ticket.get("data")
     ticket_date = datetime.strptime(ticket_date, "%d/%m/%Y").date() if ticket_date else date.today()
+    # Antes ficava sempre 'paid' aqui, direto no SQL — todo ticket saía "pago"
+    # sem a pessoa escolher nada. Agora respeita o que veio do formulário.
+    status = (ticket.get("status") or "pending").strip().lower()
+    if status not in ("paid", "pending", "cancelled", "draft"):
+        status = "pending"
+    payment_method = ticket.get("payment_method") if status == "paid" else None
+    # Orçamento usa a mesma tabela/estrutura do ticket, só marca record_type
+    # diferente — assim fica de fora dos totais financeiros (venda de verdade).
+    record_type = "budget" if ticket.get("record_type") == "budget" else "ticket"
 
     with _pg_conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
                 insert into public.tickets
-                  (client_id, animal_id, ticket_date, veterinarian, status,
+                  (client_id, animal_id, ticket_date, veterinarian, status, record_type,
                    subtotal_services, subtotal_products, discount_total, gross_total,
                    net_total, payment_method, notes, source, source_payload)
                 values
-                  (%s,%s,%s,%s,'paid',%s,%s,%s,%s,%s,%s,%s,'manual',%s)
+                  (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'manual',%s)
                 returning id
                 """,
                 (
@@ -2552,12 +2584,14 @@ def salvar_ticket(ticket):
                     animal["id"] if animal else None,
                     ticket_date,
                     ticket.get("veterinario"),
+                    status,
+                    record_type,
                     subtotal_services,
                     subtotal_products,
                     discount_total,
                     gross_total,
                     net_total,
-                    ticket.get("payment_method"),
+                    payment_method,
                     ticket.get("observacao"),
                     Json(ticket, dumps=_json_dumps) if Json else json.dumps(ticket, ensure_ascii=False, default=str),
                 ),
@@ -2633,6 +2667,9 @@ def get_ticket(ticket_id):
         "total_bruto": f'{float(ticket.get("gross_total") or 0):.2f}'.replace(".", ","),
         "total_descontos": f'{float(ticket.get("discount_total") or 0):.2f}'.replace(".", ","),
         "total_liquido": f'{float(ticket.get("net_total") or 0):.2f}'.replace(".", ","),
+        "record_type": ticket.get("record_type") or "ticket",
+        "status": ticket.get("status") or "",
+        "pago": (ticket.get("status") or "").lower() == "paid",
     }
 
 
@@ -2648,7 +2685,7 @@ def get_tickets_cliente(id_cliente):
         select t.*, a.name as animal_name
           from public.tickets t
      left join public.animals a on a.id = t.animal_id
-         where t.client_id = %s
+         where t.client_id = %s and t.record_type = 'ticket'
          order by t.ticket_date desc, t.created_at desc
         """,
         (client["id"],),
@@ -2671,6 +2708,39 @@ def get_tickets_cliente(id_cliente):
             "origem": "postgres",
         })
     return [], tickets
+
+
+def get_orcamentos_cliente(id_cliente):
+    """Orçamentos do cliente — mesma tabela dos tickets, mas record_type='budget'
+    (não é venda, não entra em nenhum total financeiro)."""
+    if not _pg_enabled():
+        return []
+    client = _resolve_client_pg(id_cliente)
+    if not client:
+        return []
+    rows = _pg_fetchall(
+        """
+        select t.*, a.name as animal_name
+          from public.tickets t
+     left join public.animals a on a.id = t.animal_id
+         where t.client_id = %s and t.record_type = 'budget'
+         order by t.ticket_date desc, t.created_at desc
+        """,
+        (client["id"],),
+    )
+    orcamentos = []
+    for r in rows:
+        nome_animal = r.get("animal_name") or ""
+        orcamentos.append({
+            "id": str(r["id"]),
+            "data": r["ticket_date"].strftime("%d/%m/%Y") if r.get("ticket_date") else "",
+            "veterinario": r.get("veterinarian") or "",
+            "nome_animal": nome_animal,
+            "animal": nome_animal,
+            "total_liquido": f'{float(r.get("net_total") or 0):.2f}'.replace(".", ","),
+            "numero": str(r["id"]),
+        })
+    return orcamentos
 
 
 def apagar_cliente(id_cliente):
@@ -2869,6 +2939,30 @@ def get_receitas_animal(id_cliente, id_animal):
         _build_receita(r, itens_por_receita.get(r["id"], []), client_map, animal_map)
         for r in rows
     ]
+
+
+def get_medicamentos_recentes(limit=300):
+    """Nomes de medicamentos já usados em receitas (qualquer cliente), pra autocomplete."""
+    if not _pg_enabled():
+        return _LEGACY_get_medicamentos_recentes(limit)
+    rows = _pg_fetchall(
+        """
+        select raw_text
+          from public.prescription_items
+         where raw_text is not null and raw_text <> ''
+         order by created_at desc
+         limit 2000
+        """
+    )
+    vistos = set()
+    nomes = []
+    for r in rows:
+        nome = (r.get("raw_text") or "").split("---")[0].strip()
+        chave = nome.lower()
+        if nome and chave not in vistos:
+            vistos.add(chave)
+            nomes.append(nome)
+    return sorted(nomes, key=str.lower)[:limit]
 
 
 def atualizar_receita(receita_id, dados):
@@ -3090,7 +3184,8 @@ def resumo_financeiro(inicio=None, fim=None):
             count(*) as qtd_tickets,
             count(*) filter (where lower(status) = 'paid') as qtd_pagos
           from public.tickets
-         where (%s::date is null or ticket_date >= %s::date)
+         where record_type = 'ticket'
+           and (%s::date is null or ticket_date >= %s::date)
            and (%s::date is null or ticket_date <= %s::date)
         """,
         (inicio, inicio, fim, fim),
@@ -3110,6 +3205,7 @@ def resumo_financeiro(inicio=None, fim=None):
      left join public.tickets t
             on date_trunc('month', t.ticket_date) = m.month_start
            and lower(t.status) = 'paid'
+           and t.record_type = 'ticket'
          group by m.month_start
          order by m.month_start
         """
@@ -3144,7 +3240,8 @@ def ultimos_tickets(limite=15, inicio=None, fim=None):
           from public.tickets t
           join public.clients c on c.id = t.client_id
      left join public.animals a on a.id = t.animal_id
-         where (%s::date is null or t.ticket_date >= %s::date)
+         where t.record_type = 'ticket'
+           and (%s::date is null or t.ticket_date >= %s::date)
            and (%s::date is null or t.ticket_date <= %s::date)
          order by t.ticket_date desc, t.created_at desc
          limit %s
@@ -3183,6 +3280,7 @@ def dashboard_overview(inicio=None, fim=None):
             "stats": stats,
             "fin": _LEGACY_resumo_financeiro(inicio, fim),
             "ultimos": _LEGACY_ultimos_tickets(8, inicio, fim),
+            "retornos": [],
         }
 
     with _pg_conn() as conn:
@@ -3207,7 +3305,8 @@ def dashboard_overview(inicio=None, fim=None):
                     count(*) as qtd_tickets,
                     count(*) filter (where lower(status) = 'paid') as qtd_pagos
                   from public.tickets
-                 where (%s::date is null or ticket_date >= %s::date)
+                 where record_type = 'ticket'
+                   and (%s::date is null or ticket_date >= %s::date)
                    and (%s::date is null or ticket_date <= %s::date)
                 """,
                 (inicio, inicio, fim, fim),
@@ -3228,6 +3327,7 @@ def dashboard_overview(inicio=None, fim=None):
              left join public.tickets t
                     on date_trunc('month', t.ticket_date) = m.month_start
                    and lower(t.status) = 'paid'
+                   and t.record_type = 'ticket'
                  group by m.month_start
                  order by m.month_start
                 """
@@ -3249,7 +3349,8 @@ def dashboard_overview(inicio=None, fim=None):
                   from public.tickets t
                   join public.clients c on c.id = t.client_id
              left join public.animals a on a.id = t.animal_id
-                 where (%s::date is null or t.ticket_date >= %s::date)
+                 where t.record_type = 'ticket'
+                   and (%s::date is null or t.ticket_date >= %s::date)
                    and (%s::date is null or t.ticket_date <= %s::date)
                  order by t.ticket_date desc, t.created_at desc
                  limit 8
@@ -3309,4 +3410,45 @@ def dashboard_overview(inicio=None, fim=None):
         },
         "fin": fin,
         "ultimos": ultimos,
+        "retornos": get_retornos_vacinas(),
     }
+
+
+def get_retornos_vacinas(limit=12):
+    """Vacinas cujo retorno (aplicação + 1 ano, ou return_at se tiver) está
+    vencido ou vencendo nos próximos 60 dias — pra avisar quem precisa revacinar."""
+    if not _pg_enabled():
+        return []
+    rows = _pg_fetchall(
+        """
+        select v.id, v.vaccine_name, v.applied_at,
+               coalesce(v.return_at, v.applied_at + interval '1 year')::date as due_date,
+               c.id as client_id, c.name as client_name,
+               a.id as animal_id, a.name as animal_name
+          from public.vaccinations v
+          join public.clients c on c.id = v.client_id
+     left join public.animals a on a.id = v.animal_id
+         where coalesce(v.return_attended, false) = false
+           and coalesce(v.return_at, v.applied_at + interval '1 year')
+               between current_date - interval '90 days' and current_date + interval '60 days'
+         order by due_date
+         limit %s
+        """,
+        (limit,),
+    )
+    hoje = date.today()
+    retornos = []
+    for r in rows:
+        due = r.get("due_date")
+        retornos.append({
+            "id": str(r["id"]),
+            "vacina": r.get("vaccine_name") or "",
+            "data_aplicacao": r["applied_at"].strftime("%d/%m/%Y") if r.get("applied_at") else "",
+            "data_retorno": due.strftime("%d/%m/%Y") if due else "",
+            "atrasado": bool(due and due < hoje),
+            "cliente": r.get("client_name") or "",
+            "animal": r.get("animal_name") or "",
+            "id_cliente": str(r["client_id"]),
+            "id_animal": str(r["animal_id"]) if r.get("animal_id") else "",
+        })
+    return retornos

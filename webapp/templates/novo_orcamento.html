@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Novo Ticket{% endblock %}
-{% block topbar_title %}Registrar Ticket{% endblock %}
+{% block title %}Novo Orçamento{% endblock %}
+{% block topbar_title %}Registrar Orçamento{% endblock %}
 
 {% block content %}
 {% set nome_animal = animal.get('nome_animal') or animal.get('nome') or '' %}
@@ -11,30 +11,35 @@
     <i class="bi bi-arrow-left"></i>
   </a>
   <h4 class="fw-bold mb-0">
-    Registrar Ticket
+    Registrar Orçamento
     <small class="text-muted fw-normal">
       — {{ cliente.nome if cliente else '' }} / {{ nome_animal }}
     </small>
   </h4>
 </div>
 
-<form method="post" id="ticketForm">
+<div class="alert alert-info py-2 px-3" style="font-size:.85rem">
+  <i class="bi bi-info-circle me-1"></i>
+  Orçamento não entra no financeiro como venda — é só uma proposta pro cliente.
+</div>
 
-  {% if tickets_anteriores %}
+<form method="post" id="orcamentoForm">
+
+  {% if orcamentos_anteriores %}
   <div class="card mb-3 border-primary">
     <div class="card-body py-3">
       <label class="form-label fw-semibold mb-1">
-        <i class="bi bi-arrow-repeat me-1 text-primary"></i>Reaproveitar ticket anterior
+        <i class="bi bi-arrow-repeat me-1 text-primary"></i>Reaproveitar orçamento anterior
       </label>
-      <select id="reusarTicket" class="form-select">
+      <select id="reusarOrcamento" class="form-select">
         <option value="">— Começar em branco —</option>
-        {% for t in tickets_anteriores %}
+        {% for t in orcamentos_anteriores %}
         <option value="{{ loop.index0 }}">
           {{ t.data or 'Sem data' }} · R$ {{ t.total or '0,00' }} · {{ t.itens|length }} item(ns)
         </option>
         {% endfor %}
       </select>
-      <div class="form-text">Escolha um ticket já feito para este animal e os itens serão copiados (você pode editar depois).</div>
+      <div class="form-text">Escolha um orçamento já feito para este animal e os itens serão copiados (você pode editar depois).</div>
     </div>
   </div>
   {% endif %}
@@ -42,7 +47,7 @@
   <div class="card mb-3">
     <div class="card-body">
 
-      <h6 class="fw-bold mb-3"><i class="bi bi-cart me-2 text-primary"></i>Itens do Ticket</h6>
+      <h6 class="fw-bold mb-3"><i class="bi bi-cart me-2 text-primary"></i>Itens do Orçamento</h6>
 
       <style>
         /* No celular a tabela de itens vira uma pilha de cartões — em linha
@@ -91,36 +96,14 @@
         <div class="card-body">
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Serviço feito por</label>
+              <label class="form-label">Orçamento feito por</label>
               <input type="text" name="veterinario" class="form-control"
                      value="Luana Maria Feitosa Barroso">
             </div>
             <div class="col-md-6">
-              <label class="form-label">Data do Ticket</label>
-              <input type="text" name="data" class="form-control" id="dataTicket"
+              <label class="form-label">Data do Orçamento</label>
+              <input type="text" name="data" class="form-control" id="dataOrcamento"
                      placeholder="DD/MM/AAAA">
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Status de pagamento</label>
-              <select name="status_pagamento" id="statusPagamento" class="form-select">
-                <option value="pending" selected>Pendente</option>
-                <option value="paid">Pago</option>
-              </select>
-            </div>
-            <div class="col-md-6" id="formaPagamentoWrap" style="display:none">
-              <label class="form-label">Forma de pagamento</label>
-              <select name="forma_pagamento" class="form-select">
-                <option value="" disabled selected>Selecione...</option>
-                <option value="Dinheiro">Dinheiro</option>
-                <option value="Pix">Pix</option>
-                <option value="Cartão de débito">Cartão de débito</option>
-                <option value="Crédito à vista">Crédito à vista</option>
-                <option value="Crédito 2x">Crédito 2x</option>
-                <option value="Crédito 3x">Crédito 3x</option>
-                <option value="Crédito 4x">Crédito 4x</option>
-                <option value="Crédito 5x">Crédito 5x</option>
-                <option value="Crédito 6x">Crédito 6x</option>
-              </select>
             </div>
           </div>
         </div>
@@ -129,7 +112,7 @@
     <div class="col-md-4">
       <div class="card bg-dark text-white">
         <div class="card-body text-center">
-          <div class="small text-white-50">Valor Final do Ticket</div>
+          <div class="small text-white-50">Valor do Orçamento</div>
           <div class="fs-3 fw-bold" id="totalGeral">R$ 0,00</div>
         </div>
       </div>
@@ -138,7 +121,7 @@
 
   <div class="mt-3 d-flex gap-2">
     <button type="submit" class="btn btn-primary px-4">
-      <i class="bi bi-printer me-1"></i>Gerar e Imprimir Ticket
+      <i class="bi bi-printer me-1"></i>Gerar e Imprimir Orçamento
     </button>
     <a href="{{ url_for('cliente', id_cliente=id_cliente, animal=id_animal) }}"
        class="btn btn-outline-secondary">Cancelar</a>
@@ -173,9 +156,8 @@ const SERVICOS = {
 
 function parseValor(str) {
   if (!str) return 0;
-  // Remove "R$", espaços, pontos de milhar; troca vírgula decimal por ponto
   let s = String(str).replace(/R\$/g,'').replace(/\s/g,'').trim();
-  s = s.replace(/\.(?=\d{3})/g, '');  // remove ponto de milhar
+  s = s.replace(/\.(?=\d{3})/g, '');
   s = s.replace(',', '.');
   const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
@@ -209,7 +191,6 @@ function addLinha(desc='', valor='', tipo='clinica', qtd=1, desconto='0') {
   `;
   tbody.appendChild(tr);
 
-  // Auto-preenche valor ao escolher serviço
   const descInput = tr.querySelector('.desc');
   descInput.addEventListener('input', function() {
     const svc = SERVICOS[this.value];
@@ -242,7 +223,7 @@ function calcular() {
 
 // Data de hoje no formato DD/MM/AAAA
 const hoje = new Date();
-document.getElementById('dataTicket').value =
+document.getElementById('dataOrcamento').value =
   String(hoje.getDate()).padStart(2,'0') + '/' +
   String(hoje.getMonth()+1).padStart(2,'0') + '/' +
   hoje.getFullYear();
@@ -250,23 +231,15 @@ document.getElementById('dataTicket').value =
 // Começa com uma linha
 addLinha();
 
-// Só pede a forma de pagamento quando marca "Pago" — senão fica pendente
-// (era o bug: todo ticket saía "pago" sozinho, sem perguntar nada).
-const statusPagamento = document.getElementById('statusPagamento');
-const formaPagamentoWrap = document.getElementById('formaPagamentoWrap');
-statusPagamento.addEventListener('change', function () {
-  formaPagamentoWrap.style.display = this.value === 'paid' ? '' : 'none';
-});
-
-// ── Reaproveitar ticket anterior ──
-const TICKETS_ANT = {{ (tickets_anteriores or []) | tojson }};
-const selReusarTk = document.getElementById('reusarTicket');
-if (selReusarTk) {
-  selReusarTk.addEventListener('change', function () {
+// ── Reaproveitar orçamento anterior ──
+const ORCAMENTOS_ANT = {{ (orcamentos_anteriores or []) | tojson }};
+const selReusarOrc = document.getElementById('reusarOrcamento');
+if (selReusarOrc) {
+  selReusarOrc.addEventListener('change', function () {
     if (this.value === '') return;
-    const t = TICKETS_ANT[parseInt(this.value, 10)];
+    const t = ORCAMENTOS_ANT[parseInt(this.value, 10)];
     if (!t || !t.itens) return;
-    document.getElementById('itensBody').innerHTML = '';  // limpa
+    document.getElementById('itensBody').innerHTML = '';
     t.itens.forEach(it =>
       addLinha(it.descricao || '', it.valor || '', it.tipo || 'clinica', it.qtd || 1, it.desconto || '0'));
     if (!t.itens.length) addLinha();

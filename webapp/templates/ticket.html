@@ -2,7 +2,8 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Ticket #{{ ticket.id }} — {{ ticket.nome_cliente }}</title>
+  {% set eh_orcamento = ticket.record_type == 'budget' %}
+  <title>{{ 'Orçamento' if eh_orcamento else 'Ticket' }} #{{ ticket.id }} — {{ ticket.nome_cliente }}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; color: #222; }
@@ -62,7 +63,7 @@
     {% if clinica.cnpj %}<p>CNPJ: {{ clinica.cnpj }}</p>{% endif %}
   </div>
   <div class="ticket-num">
-    <strong>Nº do ticket: {{ ticket.id }}</strong><br>
+    <strong>{{ 'Nº do orçamento' if eh_orcamento else 'Nº do ticket' }}: {{ ticket.id }}</strong><br>
     Data: {{ ticket.data or 'N/D' }}
   </div>
 </div>
@@ -167,7 +168,7 @@
       <td style="text-align:right">R$ {{ ticket.total_descontos or '0,00' }}</td>
     </tr>
     <tr class="liquido">
-      <td>Líquido à pagar</td>
+      <td>{{ 'Valor do orçamento' if eh_orcamento else 'Líquido à pagar' }}</td>
       <td style="text-align:right">R$ {{ ticket.total_liquido or '0,00' }}</td>
     </tr>
   </table>

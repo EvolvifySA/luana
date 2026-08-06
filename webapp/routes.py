@@ -399,6 +399,7 @@ def register_routes(app):
             stats=dados["stats"],
             fin=dados["fin"],
             ultimos=dados["ultimos"],
+            retornos=dados.get("retornos", []),
             filtro=filtro,
         )
 
@@ -520,7 +521,8 @@ def register_routes(app):
                                secoes=SECOES, secao_ativa=secao,
                                id_animal_ativo=id_animal, registros=registros,
                                receitas_criadas=receitas_criadas,
-                               tickets_imp=tickets_imp, tickets_novos=tickets_novos)
+                               tickets_imp=tickets_imp, tickets_novos=tickets_novos,
+                               orcamentos=db.get_orcamentos_cliente(id_cliente))
 
     @app.route("/clientes/<id_cliente>/apagar", methods=["POST"])
     def apagar_cliente(id_cliente):
@@ -794,6 +796,10 @@ def register_routes(app):
                 "total_bruto":    f"{bruto:.2f}".replace(".", ","),
                 "total_descontos": f"{total_desc:.2f}".replace(".", ","),
                 "total_liquido":  f"{liquido:.2f}".replace(".", ","),
+                # Antes ia direto como "pago" no banco, sem perguntar nada.
+                # Agora só fica pago se ela marcar isso no formulário.
+                "status":         request.form.get("status_pagamento", "pending"),
+                "payment_method": request.form.get("forma_pagamento", "").strip() or None,
             }
             saved_ticket_id = db.salvar_ticket(ticket)
             ticket["id"] = saved_ticket_id or ticket["id"]
@@ -815,6 +821,87 @@ def register_routes(app):
                                id_cliente=id_cliente, id_animal=id_animal,
                                servicos=db.get_servicos(),
                                tickets_anteriores=tickets_anteriores)
+
+    # ─── Orçamentos ───────────────────────────────────────────────────────────
+    @app.route("/clientes/<id_cliente>/animais/<id_animal>/orcamento",
+               methods=["GET", "POST"])
+    def novo_orcamento(id_cliente, id_animal):
+        cliente_dados = db.get_cliente(id_cliente)
+        animais = db.get_animais_cliente(id_cliente)
+        animal  = next((a for a in animais
+                        if str(a.get("id_animal") or a.get("id", "")) == str(id_animal)), {})
+
+        if request.method == "POST":
+            itens, total_svc, total_prod, total_desc = [], 0.0, 0.0, 0.0
+            campos = zip(request.form.getlist("descricao[]"),
+                         request.form.getlist("tipo_svc[]"),
+                         request.form.getlist("qtd[]"),
+                         request.form.getlist("valor[]"),
+                         request.form.getlist("desconto[]"))
+            for desc, tp, qtd, val, desc_val in campos:
+                if not desc.strip():
+                    continue
+                try:
+                    v = float(val.replace(",", ".") or 0)
+                    q = int(qtd or 1)
+                    d = float(desc_val.replace(",", ".") or 0)
+                    bruto_item = v * q
+                    sub = bruto_item - d
+                    if tp == "produto":
+                        total_prod += bruto_item
+                    else:
+                        total_svc += bruto_item
+                    total_desc += d
+                    itens.append({"descricao": desc, "tipo": tp, "qtd": q,
+                                  "valor": f"{v:.2f}".replace(".", ","),
+                                  "desconto": f"{d:.2f}".replace(".", ","),
+                                  "subtotal": f"{sub:.2f}".replace(".", ",")})
+                except (ValueError, TypeError):
+                    continue
+
+            bruto   = total_svc + total_prod
+            liquido = bruto - total_desc
+            c = cliente_dados or {}
+            orcamento = {
+                "id":            db.proximo_id_ticket(),
+                "data":          request.form.get("data", date.today().strftime("%d/%m/%Y")),
+                "veterinario":   request.form.get("veterinario", ""),
+                "id_cliente":    id_cliente, "id_animal": id_animal,
+                "nome_cliente":  c.get("nome", ""), "cpf": c.get("cpf", ""),
+                "celular":       c.get("celular", ""), "email": c.get("email", ""),
+                "endereco":      c.get("endereco", ""), "cidade": c.get("cidade", ""),
+                "nome_animal":   animal.get("nome_animal") or animal.get("nome", ""),
+                "especie":       animal.get("especie", ""), "raca": animal.get("raca", ""),
+                "pelagem":       animal.get("pelagem", ""), "nascimento": animal.get("nascimento", ""),
+                "sexo":          animal.get("sexo", ""), "chip": animal.get("chip", ""),
+                "itens":         itens,
+                "total_servicos": f"{total_svc:.2f}".replace(".", ","),
+                "total_produtos": f"{total_prod:.2f}".replace(".", ","),
+                "total_bruto":    f"{bruto:.2f}".replace(".", ","),
+                "total_descontos": f"{total_desc:.2f}".replace(".", ","),
+                "total_liquido":  f"{liquido:.2f}".replace(".", ","),
+                "record_type":   "budget",
+            }
+            saved_id = db.salvar_ticket(orcamento)
+            orcamento["id"] = saved_id or orcamento["id"]
+            return render_template("ticket.html", **pdf_context(ticket=orcamento, clinica=config.CLINICA))
+
+        # Orçamentos anteriores deste animal (com itens) para reaproveitar
+        orcamentos_cli = db.get_orcamentos_cliente(id_cliente)
+        orcamentos_anteriores = []
+        for o in orcamentos_cli:
+            full = db.get_ticket(o.get("id"))
+            if full and str(full.get("id_animal")) == str(id_animal) and full.get("itens"):
+                orcamentos_anteriores.append({
+                    "id":    full.get("id"),
+                    "data":  full.get("data", ""),
+                    "total": full.get("total_liquido", ""),
+                    "itens": full.get("itens", []),
+                })
+        return render_template("novo_orcamento.html", cliente=cliente_dados, animal=animal,
+                               id_cliente=id_cliente, id_animal=id_animal,
+                               servicos=db.get_servicos(),
+                               orcamentos_anteriores=orcamentos_anteriores)
 
     @app.route("/ticket/<ticket_id>")
     def ver_ticket(ticket_id):
@@ -872,7 +959,8 @@ def register_routes(app):
         return render_template("nova_receita.html", cliente=cliente_dados,
                                animal=animal, id_cliente=id_cliente, id_animal=id_animal,
                                receitas_anteriores=receitas_anteriores,
-                               receitas_personalizadas=receitas_personalizadas)
+                               receitas_personalizadas=receitas_personalizadas,
+                               medicamentos=db.get_medicamentos_recentes())
 
     @app.route("/receita/<receita_id>/editar", methods=["GET", "POST"])
     def editar_receita(receita_id):
@@ -902,7 +990,8 @@ def register_routes(app):
         return render_template("nova_receita.html", cliente=cliente_dados,
                                animal=animal, id_cliente=id_cliente, id_animal=id_animal,
                                receitas_anteriores=None, receitas_personalizadas=None,
-                               editando=True, receita=receita)
+                               editando=True, receita=receita,
+                               medicamentos=db.get_medicamentos_recentes())
 
     @app.route("/receitas-personalizadas")
     def receitas_personalizadas():
