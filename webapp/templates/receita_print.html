@@ -2,6 +2,8 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
   <title>Receituário — {{ animal.get('nome_animal') or animal.get('nome') or '' }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -81,6 +83,16 @@
     .folha .rot { font-weight: 700; color: var(--wine); }
     .folha .val { color: #2b2b2b; font-weight: 500; }
 
+    /* Alguns navegadores de celular "detectam" telefone/data no texto e pintam
+       de azul, ignorando a cor definida acima e a meta format-detection —
+       isso força a cor de volta caso o navegador injete um <a> por baixo. */
+    .folha a, .ce-page a {
+      color: inherit !important;
+      text-decoration: inherit !important;
+      -webkit-text-fill-color: inherit !important;
+      cursor: text !important;
+    }
+
     /* Contato no topo (esquerda) — o logo e "Atendimento" já vêm na arte, à direita */
     .rx-contato { position: absolute; top: 22mm; left: 20mm; font-size: 12px; color: var(--wine); font-weight: 600; }
     .rx-contato span { margin-right: 16mm; }
@@ -92,6 +104,11 @@
     .secao { font-weight: 700; color: var(--wine); font-size: 13px; margin-bottom: 3px; }
     .campo-linha { display: flex; gap: 8px; margin: 3px 0; font-size: 12px; }
     .campo-linha > div { flex: 1; }
+    /* A logo da arte de fundo desce até ~45,5mm — a 1ª linha de campos do
+       Responsável (onde fica o Celular, à direita) empurra mais pra baixo
+       pra não ficar por baixo da logo. (":first-of-type" não serve aqui —
+       o primeiro <div> do bloco é o .secao, não a .campo-linha.) */
+    .bloco-resp .secao + .campo-linha { margin-top: 4mm; }
 
     /* Corpo: data + medicamentos */
     .rx-corpo { position: absolute; top: 97mm; left: 16mm; right: 14mm; bottom: 22mm; }
@@ -113,11 +130,32 @@
     .rx-obs .obs-lista { margin: 4px 0 0 18px; padding: 0; }
     .rx-obs .obs-lista li { margin-bottom: 2px; }
 
+    /* Assinatura e rodapé — a arte de fundo só tem as linhas em branco,
+       esse texto precisa ser gerado aqui mesmo (não vem desenhado na imagem). */
+    .rx-assinatura { position: absolute; top: 268mm; right: 20mm; width: 74mm; text-align: center; color: var(--wine); font-size: 11px; line-height: 1.25; }
+    .rx-assinatura .nome { font-weight: 700; }
+
+    .rx-rodape { position: absolute; bottom: 18mm; left: 16mm; right: 60mm; color: var(--wine); font-size: 11px; }
+    .rx-rodape .rod-tit { font-weight: 700; white-space: nowrap; }
+    .rx-rodape .rod-nome { margin-top: 2px; }
+
 
     @media print {
       .no-print { display: none !important; }
       .folha { margin: 0; }
+      /* Só reseta a altura do WRAPPER (que o JS força em px pra tela) — a
+         .folha em si não pode virar height:auto aqui: o conteúdo dela é
+         todo position:absolute, então auto colapsaria pra 0 e a página
+         sairia em branco no PDF. */
+      .page-wrap { transform: none !important; height: auto !important; overflow: visible !important; }
+      .page-wrap .folha, .page-wrap .ce-page { transform: none !important; }
     }
+
+    /* Fora da impressão a folha tem largura fixa em mm (A4); no celular isso
+       estoura a tela e corta o lado direito. O JS no fim do body mede a
+       largura real e encolhe (transform: scale) pra caber, sem alterar o
+       layout usado na hora de imprimir/gerar PDF. */
+    .page-wrap { overflow: hidden; }
   </style>
 </head>
 <body>
@@ -156,6 +194,7 @@
 {% if receita.tipo == 'especial' %}
 {# ---------- Controle Especial: modelo oficial, com identificação do
    comprador/fornecedor pra farmácia preencher na hora da venda ---------- #}
+<div class="page-wrap">
 <div class="ce-page">
 
   <div class="ce-header">
@@ -247,14 +286,16 @@
     <p><b>Data:</b> {{ receita.data }} &nbsp;&nbsp; <b>Nome:</b> {{ receita.veterinario }}{% if receita.crmv %} &nbsp;&nbsp; <b>CRMV:</b> {{ receita.crmv }}{% endif %}</p>
   </fieldset>
 </div>
+</div>
 
 {% else %}
 {# ---------- Receituário Simples: papel timbrado da marca (arte de fundo) ---------- #}
+<div class="page-wrap">
 <div class="folha" style="{% if receita_fundo_src %}background-image:url('{{ receita_fundo_src }}');{% endif %}">
 
   <div class="rx-contato">
     <span><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M3.654 1.328a.678.678 0 0 0-1.015-.063L1.605 2.3c-.483.484-.661 1.169-.45 1.77a17.568 17.568 0 0 0 4.168 6.608 17.569 17.569 0 0 0 6.608 4.168c.601.211 1.286.033 1.77-.45l1.034-1.034a.678.678 0 0 0-.063-1.015l-2.307-1.794a.678.678 0 0 0-.58-.122l-2.19.547a1.745 1.745 0 0 1-1.657-.459L5.482 8.062a1.745 1.745 0 0 1-.46-1.657l.548-2.19a.678.678 0 0 0-.122-.58L3.654 1.328z"/></svg>(83) 99603-0312</span>
-    <span><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M15 12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h1.172a2 2 0 0 0 1.414-.586l.828-.828A2 2 0 0 1 6.828 3h2.344a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 12.828 5H14a1 1 0 0 1 1 1v6zM2 5a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1.172a1 1 0 0 1-.707-.293l-.828-.828A2 2 0 0 0 9.172 3H6.828a2 2 0 0 0-1.414.586l-.828.828A1 1 0 0 1 3.172 5H2z"/><path d="M8 11a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5zm0 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM3 6.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0z"/></svg>@luanafeitosavet</span>
+    <span><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 0C5.829 0 5.556.01 4.703.048 3.85.088 3.269.222 2.76.42a3.917 3.917 0 0 0-1.417.923A3.927 3.927 0 0 0 .42 2.76C.222 3.268.087 3.85.048 4.7.01 5.555 0 5.827 0 8.001c0 2.172.01 2.444.048 3.297.04.852.174 1.433.372 1.942.205.526.478.972.923 1.417.444.445.89.719 1.416.923.51.198 1.09.333 1.942.372C5.555 15.99 5.827 16 8 16s2.444-.01 3.298-.048c.851-.04 1.434-.174 1.943-.372a3.916 3.916 0 0 0 1.416-.923c.445-.445.718-.891.923-1.417.197-.509.332-1.09.372-1.942C15.99 10.445 16 10.173 16 8s-.01-2.445-.048-3.299c-.04-.851-.175-1.433-.372-1.941a3.926 3.926 0 0 0-.923-1.417A3.911 3.911 0 0 0 13.24.42c-.51-.198-1.092-.333-1.943-.372C10.443.01 10.172 0 7.998 0h.003zm-.717 1.442h.718c2.136 0 2.389.007 3.232.046.78.035 1.204.166 1.486.275.373.145.64.319.92.599.28.28.453.546.598.92.11.281.24.705.275 1.485.039.843.047 1.096.047 3.231s-.008 2.389-.047 3.232c-.035.78-.166 1.203-.275 1.485a2.47 2.47 0 0 1-.599.919c-.28.28-.546.453-.92.598-.28.11-.704.24-1.485.276-.843.038-1.096.047-3.232.047s-2.39-.009-3.233-.047c-.78-.036-1.203-.166-1.485-.276a2.478 2.478 0 0 1-.92-.598 2.48 2.48 0 0 1-.6-.92c-.109-.281-.24-.705-.275-1.485-.038-.843-.046-1.096-.046-3.233 0-2.136.008-2.388.046-3.231.036-.78.166-1.204.276-1.486.145-.373.319-.64.599-.92.28-.28.546-.453.92-.598.282-.11.705-.24 1.485-.276.738-.033 1.024-.043 2.515-.045v.002zm4.988 1.328a.96.96 0 1 0 0 1.92.96.96 0 0 0 0-1.92zm-4.27 1.122a4.109 4.109 0 1 0 0 8.217 4.109 4.109 0 0 0 0-8.217zm0 1.441a2.667 2.667 0 1 1 0 5.334 2.667 2.667 0 0 1 0-5.334z"/></svg>@luanafeitosavet</span>
   </div>
 
   <div class="bloco bloco-resp">
@@ -284,11 +325,11 @@
       <div><span class="rot">Raça:</span> <span class="val">{{ animal.get('raca','') }}</span></div>
       <div><span class="rot">Sexo:</span> <span class="val">{{ animal.get('sexo','') }}</span></div>
     </div>
-    <div class="campo-linha">
-      <div><span class="rot">Pelagem:</span> <span class="val">{{ animal.get('pelagem','') }}</span></div>
-      <div><span class="rot">Peso:</span> <span class="val">{{ animal.get('peso','') }}{% if animal.get('peso') %} kg{% endif %}</span></div>
-      <div><span class="rot">Nascimento:</span> <span class="val">{% if animal.get('nascimento') %}{{ animal.nascimento | data_br }}{% endif %}</span></div>
-      <div><span class="rot">Castrado:</span> <span class="val">{{ animal.get('castrado_label','') or animal.get('castrado','') }}</span></div>
+    <div class="campo-linha" style="flex-wrap:nowrap">
+      <div style="flex:1;white-space:nowrap"><span class="rot">Pelagem:</span> <span class="val">{{ animal.get('pelagem','') }}</span></div>
+      <div style="flex:0.8;white-space:nowrap"><span class="rot">Peso:</span> <span class="val">{{ animal.get('peso','') }}{% if animal.get('peso') %} kg{% endif %}</span></div>
+      <div style="flex:1.8;white-space:nowrap"><span class="rot">Idade:</span> <span class="val">{% if animal.get('nascimento') %}{{ animal.nascimento | data_br }}{% if animal.get('idade') %} ({{ animal.idade }}){% endif %}{% endif %}</span></div>
+      <div style="flex:0.8;white-space:nowrap"><span class="rot">Castrado:</span> <span class="val">{{ animal.get('castrado_label') or animal.get('castrado') or '' }}</span></div>
     </div>
   </div>
 
@@ -314,11 +355,41 @@
   </div>
   {% endif %}
 
-  {# Assinatura e rodapé ("Luana Maria Feitosa Barroso / CRMV" e a identificação
-     "Médica veterinária / Nome: ...") agora já vêm desenhados na arte de fundo
-     (receita_fundo.png) — não precisa mais gerar esse texto por CSS. #}
+  <div class="rx-assinatura">
+    <div class="nome">{{ receita.veterinario }}</div>
+    <div>Médica veterinária{% if receita.crmv %}<br>{{ receita.crmv }}{% endif %}</div>
+  </div>
+
+  <div class="rx-rodape">
+    <div class="rod-tit">Médica veterinária</div>
+    <div class="rod-nome">Nome: {{ receita.veterinario }}{% if receita.crmv %} CRMV: {{ receita.crmv }}{% endif %}</div>
+  </div>
+</div>
 </div>
 {% endif %}
+
+<script>
+  // A folha é desenhada em largura fixa (mm, tamanho A4) pro PDF/impressão
+  // sair certo. Na tela (sobretudo celular) isso estoura a largura da
+  // viewport e corta o lado direito — aqui a gente mede o tamanho real e
+  // encolhe (scale) só pra exibição, sem afetar o layout de impressão.
+  (function () {
+    function fit() {
+      var page = document.querySelector('.page-wrap > .folha, .page-wrap > .ce-page');
+      var wrap = document.querySelector('.page-wrap');
+      if (!page || !wrap) return;
+      page.style.transform = 'none';
+      var w = page.offsetWidth;
+      var h = page.offsetHeight;
+      var scale = Math.min(1, (window.innerWidth - 4) / w);
+      page.style.transformOrigin = 'top left';
+      page.style.transform = 'scale(' + scale + ')';
+      wrap.style.height = (h * scale) + 'px';
+    }
+    window.addEventListener('load', fit);
+    window.addEventListener('resize', fit);
+  })();
+</script>
 
 </body>
 </html>

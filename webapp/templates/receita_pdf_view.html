@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Receituário — {{ animal.get('nome_animal') or animal.get('nome') or '' }}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+    .toolbar { background: #f0f4f8; padding: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .toolbar a, .toolbar button {
+      padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;
+      font-size: 13px; color: #fff; display: inline-block; text-decoration: none;
+    }
+    .btn-imprimir { background: #0d6efd; padding: 8px 20px; }
+    .btn-pdf { background: #198754; }
+    .btn-editar { background: #fd7e14; }
+    .btn-voltar { background: #6c757d; }
+    .rotulo { align-self: center; color: #666; font-size: 12px; }
+    .visor { flex: 1; border: none; }
+  </style>
+</head>
+<body>
+
+<div class="toolbar">
+  <a class="btn-pdf" href="{{ url_for('receita_pdf', receita_id=receita.id) }}" target="_blank">Baixar / Imprimir PDF</a>
+  <a class="btn-editar" href="{{ url_for('editar_receita', receita_id=receita.id) }}">Editar</a>
+  <button class="btn-voltar" onclick="window.history.back()">Voltar</button>
+  <span class="rotulo">Receituário Simples</span>
+</div>
+
+<embed class="visor" src="{{ url_for('receita_pdf', receita_id=receita.id) }}" type="application/pdf">
+
+</body>
+</html>

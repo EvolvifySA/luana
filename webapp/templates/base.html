@@ -101,6 +101,16 @@
     .topbar .tb-icon:hover { background: #e2e8f0; }
     .topbar .tb-icon .dot { position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; background: var(--red); border-radius: 50%; }
 
+    .notif-menu { width: 340px; max-height: 420px; overflow-y: auto; padding: .4rem; border: 1px solid #e2e8f0; box-shadow: 0 12px 28px rgba(15,23,42,.12); border-radius: 12px; }
+    .notif-tit { font-size: .72rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; padding: .4rem .6rem; }
+    .notif-item { display: flex; align-items: flex-start; gap: .6rem; padding: .55rem .6rem; border-radius: 8px; color: inherit; text-decoration: none; }
+    .notif-item:hover { background: #f1f5f9; }
+    .notif-item i { margin-top: 2px; color: var(--primary); }
+    .notif-item.is-late i { color: var(--red); }
+    .notif-item .ti { font-size: .82rem; font-weight: 600; color: #1e293b; }
+    .notif-item .de { font-size: .75rem; color: #64748b; }
+    .notif-vazio { padding: 1rem .6rem; font-size: .82rem; color: #94a3b8; text-align: center; }
+
     .main { margin-left: 256px; padding: 1.6rem 1.7rem; }
 
     /* ───── Avatares ───── */
@@ -271,6 +281,9 @@
     <li><a class="nav-link {% if request.endpoint=='atendimento' and request.args.get('acao')=='receita' %}active{% endif %}"
            href="{{ url_for('atendimento', acao='receita') }}">
       <i class="bi bi-capsule"></i> Emitir Receita</a></li>
+    <li><a class="nav-link {% if request.endpoint=='atendimento' and request.args.get('acao')=='orcamento' %}active{% endif %}"
+           href="{{ url_for('atendimento', acao='orcamento') }}">
+      <i class="bi bi-file-earmark-text"></i> Registrar Orçamento</a></li>
     <li><a class="nav-link {% if request.endpoint=='atendimento' and request.args.get('acao')=='consulta' %}active{% endif %}"
            href="{{ url_for('atendimento', acao='consulta') }}">
       <i class="bi bi-clipboard2-pulse"></i> Emitir Consulta</a></li>
@@ -318,7 +331,28 @@
       <input name="q" placeholder="Buscar cliente, animal ou CPF..."
              value="{{ request.args.get('q','') if request.endpoint=='clientes' else '' }}">
     </form>
-    <button class="tb-icon" type="button" title="Notificações"><i class="bi bi-bell"></i><span class="dot"></span></button>
+    <div class="dropdown">
+      <button class="tb-icon" type="button" title="Notificações" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-bell"></i>{% if notificacoes %}<span class="dot"></span>{% endif %}
+      </button>
+      <div class="dropdown-menu dropdown-menu-end notif-menu">
+        <div class="notif-tit">Pendências</div>
+        {% if notificacoes %}
+          {% for n in notificacoes %}
+          <a class="notif-item {{ 'is-late' if n.atrasado else '' }}"
+             href="{{ url_for(n.url[0], **n.url[1]) if n.url else url_for('cliente', id_cliente=n.id_cliente) }}">
+            <i class="bi {{ n.icone }}"></i>
+            <div>
+              <div class="ti">{{ n.titulo }}</div>
+              <div class="de">{{ n.detalhe }}</div>
+            </div>
+          </a>
+          {% endfor %}
+        {% else %}
+          <div class="notif-vazio">Nenhuma pendência no momento.</div>
+        {% endif %}
+      </div>
+    </div>
     <a class="tb-icon" href="{{ url_for('conta') }}" title="Conta"><i class="bi bi-gear"></i></a>
   </div>
 </div>

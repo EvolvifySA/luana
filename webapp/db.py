@@ -20,6 +20,7 @@ import sqlite3
 import os
 import re
 import logging
+import itertools
 from datetime import date
 from functools import lru_cache
 
@@ -3452,3 +3453,93 @@ def get_retornos_vacinas(limit=12):
             "id_animal": str(r["animal_id"]) if r.get("animal_id") else "",
         })
     return retornos
+
+
+def get_notificacoes_pendentes(limit=8):
+    """Junta os avisos que precisam de atenção — retorno de vacina vencendo,
+    retorno de consulta agendado e orçamento parado sem resposta — pra
+    alimentar o sininho de notificações do topo."""
+    if not _pg_enabled():
+        return []
+
+    hoje = date.today()
+    sub_limit = max(3, limit)  # busca um pouco de cada categoria antes de intercalar/cortar
+
+    vacinas = [{
+        "icone": "bi-syringe",
+        "titulo": f"Retorno de vacina — {r['animal'] or r['cliente']}",
+        "detalhe": f"{r['vacina']} · {'atrasado desde' if r['atrasado'] else 'vence em'} {r['data_retorno']}",
+        "atrasado": r["atrasado"],
+        "url": None,
+        "id_cliente": r["id_cliente"],
+    } for r in get_retornos_vacinas(limit=sub_limit)]
+
+    rows_consulta = _pg_fetchall(
+        """
+        select co.id, co.return_date,
+               c.id as client_id, c.name as client_name,
+               a.id as animal_id, a.name as animal_name
+          from public.consultations co
+          join public.clients c on c.id = co.client_id
+     left join public.animals a on a.id = co.animal_id
+         where co.return_date is not null
+           and co.return_date between current_date - interval '30 days' and current_date + interval '14 days'
+           and not exists (
+             select 1 from public.consultations co2
+              where co2.animal_id = co.animal_id
+                and co2.consultation_date > co.return_date
+           )
+         order by co.return_date
+         limit %s
+        """,
+        (sub_limit,),
+    )
+    consultas = []
+    for r in rows_consulta:
+        due = r.get("return_date")
+        atrasado = bool(due and due < hoje)
+        consultas.append({
+            "icone": "bi-clipboard2-pulse",
+            "titulo": f"Retorno de consulta — {r.get('animal_name') or r.get('client_name') or ''}",
+            "detalhe": f"{'Atrasado desde' if atrasado else 'Agendado para'} {due.strftime('%d/%m/%Y') if due else ''}",
+            "atrasado": atrasado,
+            "url": ("ver_consulta", {"consulta_id": str(r["id"])}),
+            "id_cliente": str(r["client_id"]),
+        })
+
+    rows_orc = _pg_fetchall(
+        """
+        select t.id, t.ticket_date, t.net_total,
+               c.id as client_id, c.name as client_name,
+               a.id as animal_id, a.name as animal_name
+          from public.tickets t
+          join public.clients c on c.id = t.client_id
+     left join public.animals a on a.id = t.animal_id
+         where t.record_type = 'budget'
+           and coalesce(t.status, 'pending') = 'pending'
+           and t.ticket_date >= current_date - interval '60 days'
+         order by t.ticket_date desc
+         limit %s
+        """,
+        (sub_limit,),
+    )
+    orcamentos = []
+    for r in rows_orc:
+        valor = f'{float(r.get("net_total") or 0):.2f}'.replace(".", ",")
+        orcamentos.append({
+            "icone": "bi-file-earmark-text",
+            "titulo": f"Orçamento sem resposta — {r.get('animal_name') or r.get('client_name') or ''}",
+            "detalhe": f"R$ {valor} · {r['ticket_date'].strftime('%d/%m/%Y') if r.get('ticket_date') else ''}",
+            "atrasado": False,
+            "url": ("ver_ticket", {"ticket_id": str(r["id"])}),
+            "id_cliente": str(r["client_id"]),
+        })
+
+    # Intercala as três categorias (em vez de concatenar) pra nenhuma
+    # dominar a lista sozinha quando corta no `limit` no final.
+    avisos = []
+    for grupo in itertools.zip_longest(vacinas, consultas, orcamentos):
+        avisos.extend(item for item in grupo if item is not None)
+
+    avisos.sort(key=lambda a: 0 if a["atrasado"] else 1)
+    return avisos[:limit]

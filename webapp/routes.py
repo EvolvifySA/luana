@@ -7,8 +7,12 @@ Registradas via register_routes(app) pela factory em __init__.py.
 from flask import (render_template, request, redirect,
                    url_for, flash, send_file, session)
 from datetime import date, datetime
+from io import BytesIO
 import calendar
+import logging
 import os
+
+log = logging.getLogger(__name__)
 
 _NOMES_MES = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
               "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
@@ -237,6 +241,47 @@ def _idade_texto(nascimento):
     return f"{anos} anos {meses} meses"
 
 
+def _idade_curta(nascimento):
+    """Idade compacta pro receituário: dias quando filhote (<60 dias),
+    senão 'X ano(s) e Y mes(es)' — casa com os modelos de receita fornecidos."""
+    if not nascimento:
+        return ""
+    if isinstance(nascimento, date):
+        nasc = nascimento
+    else:
+        texto = str(nascimento).strip()
+        if not texto:
+            return ""
+        nasc = None
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+            try:
+                nasc = datetime.strptime(texto, fmt).date()
+                break
+            except ValueError:
+                nasc = None
+        if not nasc:
+            return ""
+    hoje = date.today()
+    dias_totais = (hoje - nasc).days
+    if dias_totais < 0:
+        dias_totais = 0
+    if dias_totais < 60:
+        return f"{dias_totais} dias"
+    anos = hoje.year - nasc.year - ((hoje.month, hoje.day) < (nasc.month, nasc.day))
+    meses = hoje.month - nasc.month
+    if hoje.day < nasc.day:
+        meses -= 1
+    meses %= 12
+    if anos < 0:
+        anos = 0
+    partes = []
+    if anos:
+        partes.append(f"{anos} ano" + ("s" if anos != 1 else ""))
+    if meses:
+        partes.append(f"{meses} mes" + ("es" if meses != 1 else ""))
+    return " e ".join(partes) if partes else "menos de 1 mes"
+
+
 def _idade_para_campos(nascimento):
     """Converte uma data de nascimento em anos/meses para pré-preencher o form."""
     if not nascimento:
@@ -294,6 +339,16 @@ def register_routes(app):
             return
         if not session.get("usuario"):
             return redirect(url_for("login", next=request.path))
+
+    @app.context_processor
+    def injetar_notificacoes():
+        if not session.get("usuario"):
+            return {}
+        try:
+            return {"notificacoes": db.get_notificacoes_pendentes()}
+        except Exception:
+            # O sininho não pode derrubar a página se a consulta falhar.
+            return {"notificacoes": []}
 
     @app.route("/login", methods=["GET", "POST"])
     def login():
@@ -1058,15 +1113,25 @@ def register_routes(app):
         animal  = next((a for a in animais
                         if str(a.get("id_animal") or a.get("id", "")) == str(receita["id_animal"])), {})
         if animal:
-            animal = {**animal, "idade": _idade_texto(animal.get("nascimento")),
+            animal = {**animal, "idade": _idade_curta(animal.get("nascimento")),
                       "peso": db.get_peso_atual(receita["id_cliente"], receita["id_animal"])}
         receita["oral_itens"]   = parse_receita_itens(receita.get("uso_oral"))
         receita["topico_itens"] = parse_receita_itens(receita.get("uso_topico"))
+        cliente = db.get_cliente(receita["id_cliente"])
+
+        if receita.get("tipo") != "especial":
+            from webapp.receita_pdf_fill import TEMPLATE_PATH
+            if TEMPLATE_PATH.exists():
+                # Mostra o PDF de verdade (preenchido em cima do modelo da
+                # Luana) em vez da reconstrução em HTML — visor e download
+                # ficam idênticos.
+                return render_template("receita_pdf_view.html", receita=receita, animal=animal)
+
         return render_template(
             "receita_print.html",
             **pdf_context(
                 receita=receita,
-                cliente=db.get_cliente(receita["id_cliente"]),
+                cliente=cliente,
                 animal=animal,
                 clinica=config.CLINICA,
             ),
@@ -1082,16 +1147,33 @@ def register_routes(app):
         animal  = next((a for a in animais
                         if str(a.get("id_animal") or a.get("id", "")) == str(receita["id_animal"])), {})
         if animal:
-            animal = {**animal, "idade": _idade_texto(animal.get("nascimento")),
+            animal = {**animal, "idade": _idade_curta(animal.get("nascimento")),
                       "peso": db.get_peso_atual(receita["id_cliente"], receita["id_animal"])}
         receita["oral_itens"]   = parse_receita_itens(receita.get("uso_oral"))
         receita["topico_itens"] = parse_receita_itens(receita.get("uso_topico"))
+        cliente = db.get_cliente(receita["id_cliente"])
+
+        if receita.get("tipo") != "especial":
+            # Receituário Simples: preenche direto em cima do PDF de referência
+            # da Luana (pixel-perfeito) em vez de reconstruir em HTML/Playwright.
+            try:
+                from webapp.receita_pdf_fill import gerar_receita_pdf_bytes
+                pdf_bytes = gerar_receita_pdf_bytes(receita, cliente, animal)
+                buffer = BytesIO(pdf_bytes)
+                buffer.seek(0)
+                return send_file(
+                    buffer, mimetype="application/pdf", as_attachment=False,
+                    download_name=f"receita-{receita_id}.pdf", max_age=0,
+                )
+            except Exception:
+                log.exception("Falha ao preencher receitasimples.pdf — caindo pro HTML/Playwright")
+
         return render_pdf_response(
             "receita_print.html",
             f"receita-{receita_id}.pdf",
             **pdf_context(
                 receita=receita,
-                cliente=db.get_cliente(receita["id_cliente"]),
+                cliente=cliente,
                 animal=animal,
                 clinica=config.CLINICA,
             ),
