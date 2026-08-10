@@ -13,6 +13,9 @@ psycopg2-binary
 # PDF real via navegador headless
 playwright==1.60.0
 
+# Preenche o receituário simples em cima do PDF de referência
+pymupdf
+
 # Servidor WSGI para producao
 gunicorn
 

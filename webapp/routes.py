@@ -1120,8 +1120,13 @@ def register_routes(app):
         cliente = db.get_cliente(receita["id_cliente"])
 
         if receita.get("tipo") != "especial":
-            from webapp.receita_pdf_fill import TEMPLATE_PATH
-            if TEMPLATE_PATH.exists():
+            try:
+                from webapp.receita_pdf_fill import TEMPLATE_PATH
+                usa_pdf_real = TEMPLATE_PATH.exists()
+            except Exception:
+                log.exception("receita_pdf_fill indisponível — caindo pro HTML reconstruído")
+                usa_pdf_real = False
+            if usa_pdf_real:
                 # Mostra o PDF de verdade (preenchido em cima do modelo da
                 # Luana) em vez da reconstrução em HTML — visor e download
                 # ficam idênticos.
