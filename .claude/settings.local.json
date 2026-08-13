@@ -90,7 +90,9 @@
       "Bash(curl -s -b cookies9.txt -o \"C:\\\\Users\\\\leona\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--trabalhos-luana\\\\0c7b44d4-d356-4efb-af6d-5c2ba1dccd44\\\\scratchpad\\\\ver_receita.html\" -w \"ver_receita: %{http_code}\\\\n\" \"http://127.0.0.1:5001/receita/728f122b-9c39-4bc8-a7db-eb1ba6997ecf\")",
       "Bash(rm -f cookies9.txt cookiesA.txt)",
       "Bash(curl -s -i -c cookiesA.txt -X POST \"http://127.0.0.1:5001/login\" -d \"username=luana&senha=evolvify2026\")",
-      "Bash(curl -s -i -b cookiesA.txt \"http://127.0.0.1:5001/receita/728f122b-9c39-4bc8-a7db-eb1ba6997ecf\")"
+      "Bash(curl -s -i -b cookiesA.txt \"http://127.0.0.1:5001/receita/728f122b-9c39-4bc8-a7db-eb1ba6997ecf\")",
+      "Bash(ls /c/Windows/Fonts/arial.ttf /c/Windows/Fonts/arialbd.ttf 2>&1)",
+      "Read(//c/Windows/Fonts/**)"
     ],
     "additionalDirectories": [
       "C:\\Users\\leona\\Desktop\\luana",

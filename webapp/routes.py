@@ -242,8 +242,10 @@ def _idade_texto(nascimento):
 
 
 def _idade_curta(nascimento):
-    """Idade compacta pro receituário: dias quando filhote (<60 dias),
-    senão 'X ano(s) e Y mes(es)' — casa com os modelos de receita fornecidos."""
+    """Idade compacta pro receituário, no formato dos modelos da Luana:
+    '50 dias' quando filhote, '11 meses' no 1º ano, senão só '5 anos'.
+    Nada de 'X anos e Y meses' — não cabe na coluna Idade sem encolher a
+    fonte e deixar a linha visivelmente menor que as outras."""
     if not nascimento:
         return ""
     if isinstance(nascimento, date):
@@ -268,18 +270,15 @@ def _idade_curta(nascimento):
     if dias_totais < 60:
         return f"{dias_totais} dias"
     anos = hoje.year - nasc.year - ((hoje.month, hoje.day) < (nasc.month, nasc.day))
+    if anos < 0:
+        anos = 0
+    if anos >= 1:
+        return f"{anos} ano" + ("s" if anos != 1 else "")
     meses = hoje.month - nasc.month
     if hoje.day < nasc.day:
         meses -= 1
     meses %= 12
-    if anos < 0:
-        anos = 0
-    partes = []
-    if anos:
-        partes.append(f"{anos} ano" + ("s" if anos != 1 else ""))
-    if meses:
-        partes.append(f"{meses} mes" + ("es" if meses != 1 else ""))
-    return " e ".join(partes) if partes else "menos de 1 mes"
+    return f"{meses} mes" + ("es" if meses != 1 else "") if meses else "1 mes"
 
 
 def _idade_para_campos(nascimento):
