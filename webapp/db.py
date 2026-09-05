@@ -1108,49 +1108,136 @@ class _PgConnCtx:
                 self._release(self._conn)
         return False
 
+def _discard_pg_conn(conn):
+    """Descarta definitivamente uma conexão problemática."""
+    if conn is None:
+        return
+
+    pool = _PG_POOL
+
+    try:
+        if pool is not None:
+            pool.putconn(conn, close=True)
+        else:
+            conn.close()
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _is_pg_conn_healthy(conn):
+    """Verifica se a conexão realmente responde, não apenas conn.closed."""
+    if conn is None or getattr(conn, "closed", True):
+        return False
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            cur.fetchone()
+
+        # SELECT 1 inicia transação no psycopg2.
+        conn.rollback()
+        return True
+
+    except (psycopg2.InterfaceError,
+            psycopg2.OperationalError,
+            psycopg2.DatabaseError):
+        return False
+
+
+def _get_healthy_pool_conn(pool):
+    """
+    Obtém uma conexão válida do pool.
+    Se a conexão armazenada estiver morta, descarta e tenta uma nova.
+    """
+    last_error = None
+
+    for _ in range(2):
+        conn = None
+
+        try:
+            conn = pool.getconn()
+
+            if _is_pg_conn_healthy(conn):
+                return conn
+
+        except Exception as exc:
+            last_error = exc
+
+        if conn is not None:
+            _discard_pg_conn(conn)
+
+    if last_error:
+        raise last_error
+
+    raise psycopg2.OperationalError(
+        "Não foi possível obter uma conexão PostgreSQL saudável."
+    )
+
 
 def _pg_conn():
     pool = _get_pool()
 
-    # Dentro de uma requisição: reaproveita uma única conexão por requisição.
+    # Uma conexão por request Flask.
     if pool is not None and _has_app_ctx():
         from flask import g
+
         conn = getattr(g, "_pg_conn", None)
-        if conn is None or conn.closed:
-            conn = pool.getconn()
+
+        if conn is not None:
+            if getattr(conn, "closed", True):
+                g.pop("_pg_conn", None)
+                conn = None
+
+        if conn is None:
+            conn = _get_healthy_pool_conn(pool)
             g._pg_conn = conn
+
         return _PgConnCtx(conn, release=None)
 
-    # Fora de requisição (scripts): empresta e devolve ao pool no fim do bloco.
+    # Scripts/uso fora de request.
     if pool is not None:
-        conn = pool.getconn()
+        conn = _get_healthy_pool_conn(pool)
         return _PgConnCtx(conn, release=pool.putconn)
 
-    # Sem pool disponível: conexão direta (fallback).
     args, kwargs = _pg_connect_args()
     conn = psycopg2.connect(*args, **kwargs)
-    return _PgConnCtx(conn, release=lambda c: c.close())
+
+    return _PgConnCtx(
+        conn,
+        release=lambda c: c.close()
+    )
 
 
 def _pg_teardown(exc=None):
-    """Devolve a conexão da requisição ao pool (registrar no teardown_appcontext)."""
     try:
         from flask import g
     except Exception:
         return
+
     conn = g.pop("_pg_conn", None)
+
     if conn is None:
         return
+
     pool = _PG_POOL
+
+    # psycopg2 já sabe que a conexão morreu.
+    if getattr(conn, "closed", True):
+        _discard_pg_conn(conn)
+        return
+
     try:
-        if getattr(conn, "closed", True):
-            if pool is not None:
-                pool.putconn(conn, close=True)
-            return
-        try:
-            conn.rollback()
-        except Exception:
-            pass
+        conn.rollback()
+    except Exception:
+        # MUITO IMPORTANTE:
+        # rollback falhou -> NÃO devolver ao pool.
+        _discard_pg_conn(conn)
+        return
+
+    try:
         if pool is not None:
             pool.putconn(conn)
         else:
