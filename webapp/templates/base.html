@@ -290,6 +290,9 @@
     <li><a class="nav-link {% if request.endpoint=='receitas_personalizadas' %}active{% endif %}"
            href="{{ url_for('receitas_personalizadas') }}">
       <i class="bi bi-star"></i> Receitas Personalizadas</a></li>
+    <li><a class="nav-link {% if request.endpoint=='pre_cadastros' %}active{% endif %}"
+           href="{{ url_for('pre_cadastros') }}">
+      <i class="bi bi-link-45deg"></i> Pré-cadastro</a></li>
   </ul>
 
   <div class="menu-label">Cadastros</div>
@@ -370,6 +373,7 @@
 </div>
 
 <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='datas-br.js') }}"></script>
 <script>
   function toggleSidebar(force) {
     const sb = document.querySelector('.sidebar');

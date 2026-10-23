@@ -720,6 +720,29 @@ create index if not exists idx_import_rows_entity_name on public.import_rows (en
 create index if not exists idx_import_rows_legacy_key on public.import_rows (legacy_key);
 
 -- ---------------------------------------------------------------------
+-- Pré-cadastro (link enviado ao cliente antes da visita)
+-- Também é criada sob demanda por webapp/db.py (_init_pre_cadastros_pg).
+-- ---------------------------------------------------------------------
+create table if not exists public.pre_registrations (
+  id uuid primary key default gen_random_uuid(),
+  token text not null unique,
+  label text,
+  visit_date date not null,
+  visit_time time,
+  status text not null default 'waiting' check (status in ('waiting', 'new', 'registered')),
+  match_type text,
+  data jsonb not null default '{}'::jsonb,
+  client_id uuid references public.clients(id) on delete set null,
+  animal_id uuid references public.animals(id) on delete set null,
+  appointment_id uuid references public.appointments(id) on delete set null,
+  created_at timestamptz not null default now(),
+  answered_at timestamptz
+);
+alter table public.pre_registrations enable row level security;
+-- Criada sob demanda por webapp/db.py (receitas personalizadas).
+alter table if exists public.prescription_templates enable row level security;
+
+-- ---------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------
 alter table public.users enable row level security;

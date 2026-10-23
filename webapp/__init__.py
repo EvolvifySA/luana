@@ -32,6 +32,10 @@ def create_app():
     app.secret_key = config.SECRET_KEY
     app.jinja_env.filters["data_br"] = _data_br
 
+    # Atrás do proxy da hospedagem, para os links públicos saírem com https e o domínio certo.
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
     # Branding disponível em todos os templates
     @app.context_processor
     def injetar_branding():

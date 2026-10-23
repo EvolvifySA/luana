@@ -66,7 +66,8 @@ SECOES = [
     ("anotacoes",   "Anotações"),
 ]
 
-ENDPOINTS_PUBLICOS = {"login", "solicitar_redefinicao", "redefinir_senha", "static"}
+ENDPOINTS_PUBLICOS = {"login", "solicitar_redefinicao", "redefinir_senha", "static",
+                      "pre_cadastro_publico"}
 
 
 def parse_receita_itens(texto):
@@ -498,6 +499,84 @@ def register_routes(app):
             achados = db.buscar_clientes_com_animais(q=q, limite=20)
         return render_template("atendimento.html", q=q, acao=acao, achados=achados)
 
+    # ─── Pré-cadastro (link enviado ao cliente) ───────────────────────────────
+    @app.route("/pre-cadastros", methods=["GET", "POST"])
+    def pre_cadastros():
+        if request.method == "POST":
+            try:
+                token = db.criar_pre_cadastro(request.form.get("apelido"),
+                                              request.form.get("data"),
+                                              request.form.get("hora"))
+                flash("Link gerado! É só copiar e mandar para o cliente.", "success")
+                return redirect(url_for("pre_cadastros", novo=token))
+            except Exception as exc:
+                flash(str(exc), "danger")
+                return redirect(url_for("pre_cadastros"))
+        try:
+            lista = db.listar_pre_cadastros()
+        except Exception as exc:
+            flash(str(exc), "danger")
+            lista = []
+        links = {p["token"]: url_for("pre_cadastro_publico", token=p["token"], _external=True)
+                 for p in lista}
+        return render_template("pre_cadastros.html", lista=lista, links=links,
+                               novo=request.args.get("novo", ""), hoje=date.today().isoformat())
+
+    @app.route("/pre-cadastros/<pre_id>/confirmar", methods=["POST"])
+    def confirmar_pre_cadastro(pre_id):
+        try:
+            id_cliente = db.confirmar_pre_cadastro(pre_id)
+            flash("Visita lançada no cadastro do cliente.", "success")
+            return redirect(url_for("cliente", id_cliente=id_cliente))
+        except Exception as exc:
+            flash(str(exc), "danger")
+            return redirect(url_for("pre_cadastros"))
+
+    @app.route("/pre-cadastros/<pre_id>/apagar", methods=["POST"])
+    def apagar_pre_cadastro(pre_id):
+        db.apagar_pre_cadastro(pre_id)
+        flash("Pré-cadastro removido.", "success")
+        return redirect(url_for("pre_cadastros"))
+
+    @app.route("/pre-cadastro/<token>", methods=["GET", "POST"])
+    def pre_cadastro_publico(token):
+        """Formulário que o cliente recebe — rota pública, sem login."""
+        try:
+            pre = db.get_pre_cadastro_por_token(token)
+        except Exception:
+            log.exception("pré-cadastro indisponível")
+            pre = None
+        if not pre:
+            return render_template("pre_cadastro_cliente.html", estado="invalido"), 404
+        if pre["status"] != "waiting":
+            return render_template("pre_cadastro_cliente.html", estado="usado", pre=pre)
+
+        form = {}
+        erro = ""
+        if request.method == "POST":
+            campos = ("nome", "cpf", "telefone", "cep", "rua", "numero", "bairro", "cidade",
+                      "uf", "complemento", "pet", "raca", "idade", "idade_unidade", "obs")
+            form = {k: request.form.get(k, "").strip() for k in campos}
+            obrigatorios = ("nome", "cpf", "telefone", "rua", "numero", "bairro", "pet")
+            if any(not form[k] for k in obrigatorios):
+                erro = "Preencha os campos obrigatórios."
+            elif not db.cpf_valido(form["cpf"]):
+                erro = "CPF inválido. Confira os números."
+            elif len(db._so_digitos(form["telefone"])) < 10:
+                erro = "Informe o WhatsApp com DDD."
+            else:
+                try:
+                    db.responder_pre_cadastro(token, form)
+                    return render_template("pre_cadastro_cliente.html", estado="ok", pre=pre,
+                                           nome=form["nome"].split()[0], pet=form["pet"])
+                except ValueError:
+                    return render_template("pre_cadastro_cliente.html", estado="usado", pre=pre)
+                except Exception:
+                    log.exception("falha ao gravar pré-cadastro")
+                    erro = "Não foi possível enviar agora. Tente novamente em instantes."
+        return render_template("pre_cadastro_cliente.html", estado="form", pre=pre,
+                               form=form, erro=erro)
+
     # ─── Clientes ─────────────────────────────────────────────────────────────
     @app.route("/clientes")
     def clientes():
@@ -576,7 +655,8 @@ def register_routes(app):
                                id_animal_ativo=id_animal, registros=registros,
                                receitas_criadas=receitas_criadas,
                                tickets_imp=tickets_imp, tickets_novos=tickets_novos,
-                               orcamentos=db.get_orcamentos_cliente(id_cliente))
+                               orcamentos=db.get_orcamentos_cliente(id_cliente),
+                               visitas=db.get_visitas_cliente(id_cliente))
 
     @app.route("/clientes/<id_cliente>/apagar", methods=["POST"])
     def apagar_cliente(id_cliente):

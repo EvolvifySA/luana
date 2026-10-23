@@ -39,7 +39,7 @@
         <option value="">— Começar em branco —</option>
         {% for c in consultas_anteriores %}
         <option value="{{ loop.index0 }}">
-          {{ c.data or 'Sem data' }} · {{ c.descricao[:60] }}
+          {{ (c.data | data_br) or 'Sem data' }} · {{ c.descricao[:60] }}
         </option>
         {% endfor %}
       </select>

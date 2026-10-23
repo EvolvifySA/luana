@@ -126,6 +126,36 @@
   </div>
 </div>
 
+<!-- Visitas -->
+{% if visitas %}
+<div class="card mb-3">
+  <div class="card-header"><i class="bi bi-house-heart me-2 text-azul"></i>Visitas ({{ visitas|length }})</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table mb-0 align-middle">
+        <thead><tr><th>Data</th><th>Hora</th><th>Animal</th><th>Tipo</th><th>Status</th><th>Observações</th></tr></thead>
+        <tbody>
+          {% for v in visitas %}
+          <tr>
+            <td class="fw-semibold">{{ v.appointment_date | data_br }}</td>
+            <td class="text-muted">{{ v.start_time.strftime('%H:%M') if v.start_time else '—' }}</td>
+            <td>{{ v.animal_name or '—' }}</td>
+            <td>{{ v.agenda_type or '—' }}</td>
+            <td>
+              {% if v.status in ('attended', 'done') %}<span class="pill pill-green">Realizada</span>
+              {% elif v.status == 'cancelled' %}<span class="pill pill-amber">Cancelada</span>
+              {% else %}<span class="pill pill-blue">Agendada</span>{% endif %}
+            </td>
+            <td class="text-muted" style="white-space:pre-line;font-size:.8rem">{{ v.notes or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- Tickets -->
 {% if tickets_imp or tickets_novos %}
 {% set total_cli = (tickets_novos|map(attribute='total_liquido')|map('default','0')|list) %}
@@ -313,7 +343,7 @@
         <tbody>
           {% for reg in registros %}
           <tr>
-            {% for k, v in reg.items() %}{% if k not in cols_ignorar %}<td>{{ v or '—' }}</td>{% endif %}{% endfor %}
+            {% for k, v in reg.items() %}{% if k not in cols_ignorar %}<td>{{ (v | data_br) or '—' }}</td>{% endif %}{% endfor %}
             {% if secao_ativa == 'exames' %}
             <td>
               {% set pdf = reg.get('caminho_pdf','') %}

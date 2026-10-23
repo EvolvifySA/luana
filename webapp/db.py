@@ -3138,6 +3138,7 @@ def _init_receita_templates_pg():
                     created_at timestamptz not null default now()
                 )
             """)
+            cur.execute("alter table public.prescription_templates enable row level security")
         conn.commit()
 
 
@@ -3630,3 +3631,285 @@ def get_notificacoes_pendentes(limit=8):
 
     avisos.sort(key=lambda a: 0 if a["atrasado"] else 1)
     return avisos[:limit]
+
+
+# ─── Pré-cadastro (link que a veterinária manda para o cliente) ──────────────
+#
+# Fluxo: a vet marca a visita (dia/hora), gera um link e manda ao cliente. O
+# cliente preenche; se o CPF já existe na base, a visita é lançada direto no
+# cadastro dele. Se não existe (ou só o telefone bate), fica pendente no painel
+# para a vet confirmar com um clique.
+
+_PRE_CAD_PRONTO = False
+
+
+def _so_digitos(texto):
+    return re.sub(r"\D", "", str(texto or ""))
+
+
+def cpf_valido(cpf):
+    d = _so_digitos(cpf)
+    if len(d) != 11 or d == d[0] * 11:
+        return False
+    for n in (9, 10):
+        soma = sum(int(d[i]) * (n + 1 - i) for i in range(n))
+        if int(d[n]) != (soma * 10 % 11) % 10:
+            return False
+    return True
+
+
+def _formatar_cpf(cpf):
+    d = _so_digitos(cpf)
+    return f"{d[:3]}.{d[3:6]}.{d[6:9]}-{d[9:]}" if len(d) == 11 else (cpf or "")
+
+
+def _init_pre_cadastros_pg():
+    global _PRE_CAD_PRONTO
+    if _PRE_CAD_PRONTO:
+        return
+    if not _pg_enabled():
+        raise ValueError("O pré-cadastro só está disponível com o banco Supabase configurado.")
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                create table if not exists public.pre_registrations (
+                    id uuid primary key default gen_random_uuid(),
+                    token text not null unique,
+                    label text,
+                    visit_date date not null,
+                    visit_time time,
+                    status text not null default 'waiting'
+                        check (status in ('waiting', 'new', 'registered')),
+                    match_type text,
+                    data jsonb not null default '{}'::jsonb,
+                    client_id uuid references public.clients(id) on delete set null,
+                    animal_id uuid references public.animals(id) on delete set null,
+                    appointment_id uuid references public.appointments(id) on delete set null,
+                    created_at timestamptz not null default now(),
+                    answered_at timestamptz
+                )
+            """)
+            cur.execute("alter table public.pre_registrations enable row level security")
+            cur.execute("create index if not exists idx_pre_registrations_status on public.pre_registrations (status)")
+        conn.commit()
+    _PRE_CAD_PRONTO = True
+
+
+def criar_pre_cadastro(apelido, data_visita, hora):
+    """Cria o link (token) de pré-cadastro. Retorna o token."""
+    import secrets
+    _init_pre_cadastros_pg()
+    if not _parse_date(data_visita):
+        raise ValueError("Informe o dia da visita.")
+    hora = (hora or "").strip()
+    if hora:
+        m = re.fullmatch(r"([01]?\d|2[0-3]):?([0-5]\d)", hora)
+        if not m:
+            raise ValueError("Horário inválido. Use o formato 24h, ex.: 19:00.")
+        hora = f"{int(m.group(1)):02d}:{m.group(2)}"
+    token = secrets.token_urlsafe(16)
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """insert into public.pre_registrations (token, label, visit_date, visit_time)
+                   values (%s, %s, %s, %s)""",
+                (token, (apelido or "").strip() or None, _parse_date(data_visita).isoformat(), hora or None),
+            )
+        conn.commit()
+    return token
+
+
+def get_pre_cadastro_por_token(token):
+    _init_pre_cadastros_pg()
+    return _pg_fetchone("select * from public.pre_registrations where token = %s", (token,))
+
+
+def listar_pre_cadastros(limit=200):
+    _init_pre_cadastros_pg()
+    return _pg_fetchall(
+        """
+        select p.*, c.name as client_name
+          from public.pre_registrations p
+     left join public.clients c on c.id = p.client_id
+         order by p.created_at desc
+         limit %s
+        """,
+        (limit,),
+    )
+
+
+def apagar_pre_cadastro(pre_id):
+    _init_pre_cadastros_pg()
+    if not _uuid_or_none(pre_id):
+        return
+    with _pg_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("delete from public.pre_registrations where id = %s::uuid", (pre_id,))
+        conn.commit()
+
+
+def _achar_cliente_pre_cadastro(cur, cpf, telefone):
+    """(client_id, 'cpf'|'telefone') ou (None, None). CPF é a chave segura;
+    telefone só sugere, porque família costuma dividir o mesmo número."""
+    if len(cpf) == 11:
+        cur.execute(
+            r"select id from public.clients where regexp_replace(coalesce(cpf,''), '\D', '', 'g') = %s limit 1",
+            (cpf,),
+        )
+        row = cur.fetchone()
+        if row:
+            return row["id"], "cpf"
+    if len(telefone) >= 10:
+        fim = telefone[-11:]
+        cur.execute(
+            r"""select id from public.clients
+                 where right(regexp_replace(coalesce(mobile,''), '\D', '', 'g'), %s) = %s
+                    or right(regexp_replace(coalesce(phone,''), '\D', '', 'g'), %s) = %s
+                 limit 1""",
+            (len(fim), fim, len(fim), fim),
+        )
+        row = cur.fetchone()
+        if row:
+            return row["id"], "telefone"
+    return None, None
+
+
+def _lancar_visita(cur, client_id, pre, dados):
+    """Acha (ou cria) o pet do cliente e lança a visita no dia combinado.
+    Retorna (animal_id, appointment_id)."""
+    pet = (dados.get("pet") or "").strip()
+    animal_id = None
+    if pet:
+        cur.execute(
+            "select id from public.animals where client_id = %s and lower(name) = lower(%s) limit 1",
+            (client_id, pet),
+        )
+        row = cur.fetchone()
+        if row:
+            animal_id = row["id"]
+        else:
+            nascimento = _birth_date_from_age_fields({
+                "idade_anos": dados.get("idade") if dados.get("idade_unidade") == "anos" else "",
+                "idade_meses": dados.get("idade") if dados.get("idade_unidade") == "meses" else "",
+            })
+            cur.execute(
+                """insert into public.animals (client_id, name, species, breed, birth_date, source)
+                   values (%s, %s, 'Canina', %s, %s, 'system') returning id""",
+                (client_id, pet, (dados.get("raca") or "").strip() or None, nascimento),
+            )
+            animal_id = cur.fetchone()["id"]
+
+    partes = []
+    endereco = ", ".join(x for x in (dados.get("rua"), dados.get("numero")) if x)
+    if dados.get("complemento"):
+        endereco += f" – {dados['complemento']}"
+    if dados.get("bairro"):
+        endereco += f" · {dados['bairro']}"
+    if endereco:
+        partes.append(f"Endereço: {endereco}")
+    if dados.get("obs"):
+        partes.append(f"Obs.: {dados['obs']}")
+    cur.execute(
+        """insert into public.appointments
+             (client_id, animal_id, appointment_date, start_time, agenda_type,
+              status, notes, source, source_payload)
+           values (%s, %s, %s, %s, 'Visita domiciliar', 'scheduled', %s, 'system', %s)
+           returning id""",
+        (client_id, animal_id, pre["visit_date"], pre["visit_time"],
+         "\n".join(partes) or None, Json({"pre_registration_id": str(pre["id"])})),
+    )
+    return animal_id, cur.fetchone()["id"]
+
+
+def responder_pre_cadastro(token, dados):
+    """Grava a resposta do cliente. Retorna o status final ('registered'|'new')."""
+    _init_pre_cadastros_pg()
+    cpf = _so_digitos(dados.get("cpf"))
+    telefone = _so_digitos(dados.get("telefone"))
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("select * from public.pre_registrations where token = %s for update", (token,))
+            pre = cur.fetchone()
+            if not pre:
+                raise LookupError("Link inválido.")
+            if pre["status"] != "waiting":
+                raise ValueError("Esse link já foi respondido.")
+
+            client_id, match = _achar_cliente_pre_cadastro(cur, cpf, telefone)
+            animal_id = appointment_id = None
+            status = "new"
+            if match == "cpf":
+                animal_id, appointment_id = _lancar_visita(cur, client_id, pre, dados)
+                status = "registered"
+
+            cur.execute(
+                """update public.pre_registrations
+                      set status = %s, match_type = %s, data = %s, client_id = %s,
+                          animal_id = %s, appointment_id = %s, answered_at = now()
+                    where id = %s""",
+                (status, match, Json(dados, dumps=_json_dumps), client_id,
+                 animal_id, appointment_id, pre["id"]),
+            )
+        conn.commit()
+    return status
+
+
+def confirmar_pre_cadastro(pre_id):
+    """A vet confirma um pré-cadastro pendente: usa o cliente sugerido (telefone)
+    ou cria cliente + pet novos, e lança a visita. Retorna o client_id."""
+    _init_pre_cadastros_pg()
+    if not _uuid_or_none(pre_id):
+        raise ValueError("Pré-cadastro não encontrado.")
+    with _pg_conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("select * from public.pre_registrations where id = %s::uuid for update", (pre_id,))
+            pre = cur.fetchone()
+            if not pre or pre["status"] != "new":
+                raise ValueError("Esse pré-cadastro não está pendente.")
+            dados = pre["data"] or {}
+
+            client_id = pre["client_id"]
+            if not client_id:
+                cur.execute(
+                    """insert into public.clients
+                         (name, cpf, mobile, address, number, neighborhood, city, state,
+                          zip_code, notes, source)
+                       values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'system') returning id""",
+                    (dados.get("nome"), _formatar_cpf(dados.get("cpf")), dados.get("telefone"),
+                     dados.get("rua"), dados.get("numero"), dados.get("bairro"),
+                     dados.get("cidade") or None, dados.get("uf") or None,
+                     dados.get("cep") or None, dados.get("complemento") or None),
+                )
+                client_id = cur.fetchone()["id"]
+
+            animal_id, appointment_id = _lancar_visita(cur, client_id, pre, dados)
+            cur.execute(
+                """update public.pre_registrations
+                      set status = 'registered', client_id = %s, animal_id = %s, appointment_id = %s
+                    where id = %s""",
+                (client_id, animal_id, appointment_id, pre["id"]),
+            )
+        conn.commit()
+    return str(client_id)
+
+
+def get_visitas_cliente(id_cliente):
+    """Visitas/agendamentos do cliente, mais recentes primeiro."""
+    if not _pg_enabled():
+        return []
+    client = _resolve_client_pg(id_cliente)
+    if not client:
+        return []
+    rows = _pg_fetchall(
+        """
+        select ap.id, ap.appointment_date, ap.start_time, ap.agenda_type, ap.status,
+               ap.notes, a.name as animal_name
+          from public.appointments ap
+     left join public.animals a on a.id = ap.animal_id
+         where ap.client_id = %s
+         order by ap.appointment_date desc, ap.start_time desc nulls last
+         limit 30
+        """,
+        (client["id"],),
+    )
+    return rows

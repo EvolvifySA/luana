@@ -51,7 +51,11 @@
 
 {% block scripts %}
 <script>
-document.getElementById('dataReg').valueAsDate = new Date();
+(function () {
+  var h = new Date();
+  document.getElementById('dataReg').value =
+    h.getFullYear() + '-' + String(h.getMonth() + 1).padStart(2, '0') + '-' + String(h.getDate()).padStart(2, '0');
+})();
 
 // No tipo "Pesagens" o valor da "Descrição" É o peso (kg) — deixa isso óbvio.
 function ajustarCampoDescricao() {

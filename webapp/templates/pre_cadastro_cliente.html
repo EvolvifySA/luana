@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Pré-cadastro — {{ APP_MARCA }}</title>
+  <link href="{{ url_for('static', filename='vendor/bootstrap-icons.min.css') }}" rel="stylesheet">
+  <style>
+    :root {
+      --nav-1: #0a2240; --primary: #2563eb; --azul-d: #1e5bb8;
+      --bg: #eef2f7; --ink: #1e293b; --muted: #64748b;
+      --line: #e8edf3; --card: #fff; --field: #f8fafc;
+      --green: #16a34a; --amber: #d97706; --red: #dc2626;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1220; --ink: #e2e8f0; --muted: #94a3b8;
+        --line: #1e293b; --card: #111a2e; --field: #0f172a;
+      }
+    }
+    * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-size: .92rem; }
+    .head { background: linear-gradient(160deg, var(--nav-1), var(--azul-d)); color: #fff;
+      padding: 1.8rem 16px 3.6rem; text-align: center; }
+    .head .logo { width: 56px; height: 56px; border-radius: 16px; background: #fff; color: var(--primary);
+      margin: 0 auto .7rem; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; }
+    .head h1 { margin: 0; font-size: 1.3rem; }
+    .head p { margin: .35rem 0 0; color: #bcd2ee; font-size: .88rem; }
+    .wrap { max-width: 560px; margin: -2.6rem auto 2rem; padding: 0 16px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1.1rem;
+      box-shadow: 0 1px 3px rgba(15,23,42,.06); }
+    .sec { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; color: var(--muted);
+      margin: 1.3rem 0 .6rem; display: flex; align-items: center; gap: .4rem; }
+    .sec:first-child { margin-top: 0; }
+    .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: .7rem; }
+    .c6 { grid-column: span 6; } .c4 { grid-column: span 4; } .c3 { grid-column: span 3; } .c2 { grid-column: span 2; }
+    label { display: block; font-size: .8rem; font-weight: 600; margin-bottom: .3rem; }
+    label .opt { font-weight: 400; color: var(--muted); }
+    input, select, textarea { width: 100%; padding: .7rem .8rem; border: 1px solid var(--line); border-radius: 10px;
+      background: var(--field); color: var(--ink); font: inherit; font-size: 1rem; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+    .hint { font-size: .75rem; color: var(--muted); margin-top: .3rem; }
+    .visita { background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: .7rem .9rem;
+      margin-bottom: 1rem; display: flex; gap: .6rem; align-items: center; }
+    .visita i { color: var(--primary); font-size: 1.2rem; }
+    .err { color: var(--red); font-size: .85rem; margin-top: .8rem; }
+    .send { width: 100%; margin-top: 1.2rem; padding: .85rem; border: none; border-radius: 10px; color: #fff; font-size: 1rem;
+      font-weight: 600; cursor: pointer; background: linear-gradient(135deg, var(--primary), var(--azul-d)); }
+    .send:disabled { opacity: .6; }
+    .done { text-align: center; padding: 1.5rem .5rem; }
+    .done i { font-size: 3rem; }
+    .done h2 { margin: .5rem 0 .3rem; }
+    .done p { color: var(--muted); margin: 0; }
+    @media (max-width: 600px) { .c4, .c3, .c2 { grid-column: span 6; } .half { grid-column: span 3 !important; } }
+  </style>
+</head>
+<body>
+<div class="head">
+  <div class="logo"><i class="bi bi-heart-pulse"></i></div>
+  <h1>Cadastro para a visita</h1>
+  <p>Preencha rapidinho para confirmarmos seu atendimento.</p>
+</div>
+
+<div class="wrap"><div class="card">
+{% if estado == 'ok' %}
+  <div class="done">
+    <i class="bi bi-check-circle-fill" style="color:var(--green)"></i>
+    <h2>Recebido!</h2>
+    <p>Obrigado, {{ nome }}. Já temos os dados do(a) {{ pet }}. Até a visita!</p>
+  </div>
+{% elif estado == 'usado' %}
+  <div class="done">
+    <i class="bi bi-exclamation-circle" style="color:var(--amber)"></i>
+    <h2>Link já utilizado</h2>
+    <p>Esse formulário já foi respondido. Se precisar alterar algo, fale com a gente pelo WhatsApp.</p>
+  </div>
+{% elif estado == 'invalido' %}
+  <div class="done">
+    <i class="bi bi-x-circle" style="color:var(--red)"></i>
+    <h2>Link inválido</h2>
+    <p>Confira se o link foi copiado por inteiro ou peça um novo pelo WhatsApp.</p>
+  </div>
+{% else %}
+  <div class="visita">
+    <i class="bi bi-calendar-event"></i>
+    <div>Visita marcada para <b>{{ pre.visit_date | data_br }}</b>{% if pre.visit_time %} às <b>{{ pre.visit_time.strftime('%H:%M') }}</b>{% endif %}</div>
+  </div>
+
+  <form method="post" id="form" novalidate>
+    <div class="sec"><i class="bi bi-person"></i>Seus dados</div>
+    <div class="grid">
+      <div class="c6"><label>Nome completo</label><input name="nome" required autocomplete="name" value="{{ form.get('nome','') }}"></div>
+      <div class="c3"><label>CPF</label><input name="cpf" required inputmode="numeric" placeholder="000.000.000-00" maxlength="14" value="{{ form.get('cpf','') }}"></div>
+      <div class="c3"><label>WhatsApp</label><input name="telefone" required inputmode="tel" placeholder="(00) 00000-0000" autocomplete="tel" value="{{ form.get('telefone','') }}"></div>
+    </div>
+
+    <div class="sec"><i class="bi bi-geo-alt"></i>Endereço da visita</div>
+    <div class="grid">
+      <div class="c2"><label>CEP</label><input name="cep" inputmode="numeric" placeholder="00000-000" maxlength="9" value="{{ form.get('cep','') }}"></div>
+      <div class="c4"><label>Rua</label><input name="rua" required autocomplete="address-line1" value="{{ form.get('rua','') }}"></div>
+      <div class="c2 half"><label>Número</label><input name="numero" required value="{{ form.get('numero','') }}"></div>
+      <div class="c4 half"><label>Bairro</label><input name="bairro" required value="{{ form.get('bairro','') }}"></div>
+      <div class="c6"><label>Cidade <span class="opt">(opcional)</span></label><input name="cidade" value="{{ form.get('cidade','') }}"></div>
+      <div class="c6"><label>Complemento <span class="opt">(opcional)</span></label><input name="complemento" placeholder="Apto, bloco, ponto de referência" value="{{ form.get('complemento','') }}"></div>
+    </div>
+    <input type="hidden" name="uf" value="{{ form.get('uf','') }}">
+
+    <div class="sec"><i class="bi bi-emoji-smile"></i>Seu cachorro</div>
+    <div class="grid">
+      <div class="c6"><label>Nome</label><input name="pet" required value="{{ form.get('pet','') }}"></div>
+      <div class="c6"><label>Raça <span class="opt">(opcional)</span></label><input name="raca" value="{{ form.get('raca','') }}"></div>
+      <div class="c3 half"><label>Idade <span class="opt">(opcional)</span></label><input name="idade" type="number" inputmode="numeric" min="0" max="30" value="{{ form.get('idade','') }}"></div>
+      <div class="c3 half"><label>&nbsp;</label>
+        <select name="idade_unidade">
+          <option value="anos" {% if form.get('idade_unidade') != 'meses' %}selected{% endif %}>anos</option>
+          <option value="meses" {% if form.get('idade_unidade') == 'meses' %}selected{% endif %}>meses</option>
+        </select>
+      </div>
+      <div class="c6"><label>Motivo / observações <span class="opt">(opcional)</span></label>
+        <textarea name="obs" rows="3" placeholder="Ex.: vacina, está sem comer, consulta de rotina…">{{ form.get('obs','') }}</textarea></div>
+    </div>
+
+    <div id="erro" class="err" {% if not erro %}hidden{% endif %}>{{ erro }}</div>
+    <button class="send" type="submit"><i class="bi bi-send"></i> Enviar</button>
+  </form>
+{% endif %}
+</div></div>
+
+{% if estado == 'form' %}
+<script>
+  const f = document.getElementById('form');
+  const erro = document.getElementById('erro');
+
+  function cpfOk(v) {
+    const d = v.replace(/\D/g, '');
+    if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+    for (const n of [9, 10]) {
+      let s = 0;
+      for (let i = 0; i < n; i++) s += +d[i] * (n + 1 - i);
+      if ((s * 10 % 11) % 10 !== +d[n]) return false;
+    }
+    return true;
+  }
+
+  f.cpf.addEventListener('input', e => {
+    const v = e.target.value.replace(/\D/g, '').slice(0, 11);
+    e.target.value = v.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  });
+  f.telefone.addEventListener('input', e => {
+    const v = e.target.value.replace(/\D/g, '').slice(0, 11);
+    e.target.value = v.length > 6 ? `(${v.slice(0,2)}) ${v.slice(2, v.length - 4)}-${v.slice(-4)}`
+                   : v.length > 2 ? `(${v.slice(0,2)}) ${v.slice(2)}` : v;
+  });
+  f.cep.addEventListener('input', async e => {
+    const v = e.target.value.replace(/\D/g, '').slice(0, 8);
+    e.target.value = v.length > 5 ? v.slice(0, 5) + '-' + v.slice(5) : v;
+    if (v.length === 8) {
+      try {
+        const j = await (await fetch(`https://viacep.com.br/ws/${v}/json/`)).json();
+        if (!j.erro) {
+          if (!f.rua.value) f.rua.value = j.logradouro || '';
+          if (!f.bairro.value) f.bairro.value = j.bairro || '';
+          if (!f.cidade.value) f.cidade.value = j.localidade || '';
+          f.uf.value = j.uf || '';
+          f.numero.focus();
+        }
+      } catch {}
+    }
+  });
+
+  f.addEventListener('submit', e => {
+    const faltando = [...f.querySelectorAll('[required]')].filter(i => !i.value.trim());
+    let msg = '';
+    if (faltando.length) msg = 'Preencha os campos obrigatórios.';
+    else if (!cpfOk(f.cpf.value)) { msg = 'CPF inválido. Confira os números.'; faltando.push(f.cpf); }
+    if (msg) {
+      e.preventDefault();
+      erro.textContent = msg; erro.hidden = false;
+      faltando[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    f.querySelector('.send').disabled = true;
+  });
+</script>
+{% endif %}
+</body>
+</html>
